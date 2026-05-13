@@ -16,7 +16,7 @@
   <div class="navbar bg-base-300 shadow-md">
     <div class="navbar-start">
       <a href="{{ url_for('public.index') }}" class="btn btn-ghost text-xl font-bold">
-        Ludus Party Planner
+        {{ site_name }}
       </a>
     </div>
     <div class="navbar-center hidden lg:flex">
@@ -73,7 +73,7 @@
   <!-- Footer -->
   <footer class="footer footer-center p-4 bg-base-300 text-base-content">
     <aside>
-      <p>Ludus Party Planner</p>
+      <p>{{ site_name }}</p>
     </aside>
   </footer>
 

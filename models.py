@@ -89,3 +89,28 @@ class PasswordResetToken(db.Model):
     @property
     def is_valid(self):
         return self.used_at is None and self.expires_at > utcnow()
+
+
+class SiteSettings(db.Model):
+    __tablename__ = "site_settings"
+
+    key = db.Column(db.Text, primary_key=True)
+    value = db.Column(db.Text, nullable=False)
+
+    @classmethod
+    def get(cls, key, default=None):
+        row = db.session.get(cls, key)
+        return row.value if row else default
+
+    @classmethod
+    def set(cls, key, value):
+        row = db.session.get(cls, key)
+        if row:
+            row.value = value
+        else:
+            db.session.add(cls(key=key, value=value))
+        db.session.commit()
+
+    @classmethod
+    def all_as_dict(cls):
+        return {r.key: r.value for r in cls.query.all()}
