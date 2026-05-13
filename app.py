@@ -7,7 +7,7 @@ from flask_mail import Mail
 from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
 
-from models import db, User, SiteSettings
+from models import db, User, SiteSettings, Event
 
 migrate = Migrate()
 login_manager = LoginManager()
@@ -131,5 +131,34 @@ def create_app(test_config=None):
         user.is_admin = True
         db.session.commit()
         click.echo(f"'{user.name}' ({email}) is now an admin.")
+
+    @app.cli.command("seed-event")
+    def seed_event():
+        """Seed one published test event (idempotent)."""
+        from datetime import datetime
+        slug = "lan-party-2026"
+        if db.session.execute(db.select(Event).filter_by(slug=slug)).scalar_one_or_none():
+            click.echo("Test event already exists. Skipping.")
+            return
+        event = Event(
+            name="LAN Party 2026",
+            slug=slug,
+            type="lan",
+            status="published",
+            short_description="Our annual LAN party returns! Three days of gaming, friends, and fun.",
+            description=(
+                "<p>Join us for the annual Ludus LAN Party! Bring your rig or borrow one of ours.</p>"
+                "<p><strong>What to bring:</strong> Your PC, monitor, peripherals, and snacks to share.</p>"
+                "<p>Doors open Friday evening. Full schedule posted closer to the date.</p>"
+            ),
+            start_datetime=datetime(2026, 8, 7, 18, 0, 0),
+            end_datetime=datetime(2026, 8, 9, 18, 0, 0),
+            location="Community Center, 123 Main St, Springfield",
+            seating_enabled=True,
+            registration_open=True,
+        )
+        db.session.add(event)
+        db.session.commit()
+        click.echo(f"Seeded event: '{event.name}' (slug: {event.slug})")
 
     return app

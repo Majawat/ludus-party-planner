@@ -1,10 +1,69 @@
 {% extends "base.html" %}
 
-{% block title %}Event — {{ site_name }}{% endblock %}
+{% block title %}{{ event.name }} — {{ site_name }}{% endblock %}
 
 {% block content %}
-<h1 class="text-3xl font-bold mb-6">Event Detail</h1>
-<div class="alert alert-info">
-  <span>Event detail coming soon.</span>
+<div class="max-w-3xl mx-auto">
+
+  {% if event.cover_image_url %}
+    <figure class="mb-6 rounded-box overflow-hidden">
+      <img src="{{ event.cover_image_url }}" alt="{{ event.name }}" class="w-full object-cover max-h-80" />
+    </figure>
+  {% endif %}
+
+  <div class="flex flex-wrap gap-2 mb-3">
+    <span class="badge badge-primary badge-lg">{{ event.type_label }}</span>
+    {% if event.is_upcoming %}
+      <span class="badge badge-success badge-lg">Upcoming</span>
+    {% else %}
+      <span class="badge badge-ghost badge-lg">Past Event</span>
+    {% endif %}
+  </div>
+
+  <h1 class="text-4xl font-bold mb-2">{{ event.name }}</h1>
+  {% if event.short_description %}
+    <p class="text-lg text-base-content/70 mb-6">{{ event.short_description }}</p>
+  {% endif %}
+
+  <div class="card bg-base-200 shadow mb-8">
+    <div class="card-body">
+      <h2 class="card-title text-lg mb-3">Event Details</h2>
+      <dl class="space-y-2 text-sm">
+        <div class="flex gap-2">
+          <dt class="font-semibold min-w-24">Dates</dt>
+          <dd class="text-base-content/80">
+            {{ event.start_datetime.strftime('%A, %B %-d, %Y at %-I:%M %p') }}
+            &ndash;
+            {{ event.end_datetime.strftime('%A, %B %-d, %Y at %-I:%M %p') }}
+          </dd>
+        </div>
+        <div class="flex gap-2">
+          <dt class="font-semibold min-w-24">Location</dt>
+          <dd class="text-base-content/80">{{ event.location }}</dd>
+        </div>
+        {% if event.gallery_url %}
+          <div class="flex gap-2">
+            <dt class="font-semibold min-w-24">Gallery</dt>
+            <dd>
+              <a href="{{ event.gallery_url }}" target="_blank" rel="noopener" class="link link-primary">
+                View Photos
+              </a>
+            </dd>
+          </div>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+
+  {% if event.description %}
+    <div class="mb-8 space-y-4 text-base-content/90 leading-relaxed">
+      {{ event.description | safe }}
+    </div>
+  {% endif %}
+
+  <div class="mt-8">
+    <a href="{{ url_for('public.events') }}" class="btn btn-ghost btn-sm">&larr; All Events</a>
+  </div>
+
 </div>
 {% endblock %}

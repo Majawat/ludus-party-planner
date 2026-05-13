@@ -1,7 +1,8 @@
 import pytest
+from datetime import datetime
 
 from app import create_app
-from models import User, db as _db, utcnow
+from models import User, Event, db as _db, utcnow
 
 
 @pytest.fixture()
@@ -65,3 +66,63 @@ def unverified_user(app):
     _db.session.add(user)
     _db.session.commit()
     return user
+
+
+@pytest.fixture()
+def published_event(app):
+    event = Event(
+        name="Test LAN Party",
+        slug="test-lan-party",
+        type="lan",
+        status="published",
+        short_description="A test event.",
+        description="<p>Full description here.</p>",
+        start_datetime=datetime(2026, 8, 7, 18, 0, 0),
+        end_datetime=datetime(2026, 8, 9, 18, 0, 0),
+        location="Test Venue",
+        seating_enabled=True,
+        registration_open=True,
+    )
+    _db.session.add(event)
+    _db.session.commit()
+    return event
+
+
+@pytest.fixture()
+def draft_event(app):
+    event = Event(
+        name="Secret Draft Event",
+        slug="secret-draft",
+        type="board_game",
+        status="draft",
+        short_description="Not visible.",
+        description="<p>Draft content.</p>",
+        start_datetime=datetime(2026, 9, 1, 18, 0, 0),
+        end_datetime=datetime(2026, 9, 2, 18, 0, 0),
+        location="Nowhere",
+        seating_enabled=False,
+        registration_open=False,
+    )
+    _db.session.add(event)
+    _db.session.commit()
+    return event
+
+
+@pytest.fixture()
+def past_event(app):
+    event = Event(
+        name="Past Board Game Night",
+        slug="past-board-game-night",
+        type="board_game",
+        status="published",
+        short_description="Already happened.",
+        description="<p>Past event description.</p>",
+        start_datetime=datetime(2025, 11, 1, 10, 0, 0),
+        end_datetime=datetime(2025, 11, 1, 22, 0, 0),
+        location="Old Venue",
+        seating_enabled=False,
+        registration_open=False,
+    )
+    _db.session.add(event)
+    _db.session.commit()
+    return event

@@ -114,3 +114,33 @@ class SiteSettings(db.Model):
     @classmethod
     def all_as_dict(cls):
         return {r.key: r.value for r in cls.query.all()}
+
+
+class Event(db.Model):
+    __tablename__ = "events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text, nullable=False)
+    slug = db.Column(db.Text, nullable=False, unique=True)
+    type = db.Column(db.Text, nullable=False)  # 'lan' or 'board_game'
+    status = db.Column(db.Text, nullable=False, default="draft")  # 'draft', 'published', 'archived'
+    description = db.Column(db.Text, nullable=True)
+    short_description = db.Column(db.Text, nullable=True)
+    start_datetime = db.Column(db.DateTime, nullable=False)
+    end_datetime = db.Column(db.DateTime, nullable=False)
+    location = db.Column(db.Text, nullable=False)
+    cover_image_url = db.Column(db.Text, nullable=True)
+    gallery_url = db.Column(db.Text, nullable=True)
+    seating_enabled = db.Column(db.Boolean, default=False, nullable=False)
+    registration_open = db.Column(db.Boolean, default=True, nullable=False)
+    registration_closes_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+    @property
+    def is_upcoming(self):
+        return self.start_datetime > utcnow()
+
+    @property
+    def type_label(self):
+        return "LAN Party" if self.type == "lan" else "Board Game Night"
