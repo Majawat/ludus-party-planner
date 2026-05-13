@@ -1,8 +1,9 @@
+import json
 import pytest
 from datetime import datetime
 
 from app import create_app
-from models import User, Event, db as _db, utcnow
+from models import User, Event, TicketType, db as _db, utcnow
 
 
 @pytest.fixture()
@@ -126,3 +127,21 @@ def past_event(app):
     _db.session.add(event)
     _db.session.commit()
     return event
+
+
+@pytest.fixture()
+def ticket_type(app, published_event):
+    tt = TicketType(
+        event_id=published_event.id,
+        name="Weekend Pass",
+        price=20.00,
+        quantity_total=30,
+        seatable=True,
+        includes_lodging=False,
+        valid_days=json.dumps(["2026-08-07", "2026-08-08", "2026-08-09"]),
+        max_per_user=1,
+        is_active=True,
+    )
+    _db.session.add(tt)
+    _db.session.commit()
+    return tt

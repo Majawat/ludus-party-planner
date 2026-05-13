@@ -1,5 +1,8 @@
 import hashlib
+import json
+import re
 import secrets
+import unicodedata
 from datetime import datetime, timedelta, timezone
 
 from flask_login import UserMixin
@@ -15,6 +18,14 @@ def utcnow():
 
 def _hash_token(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode()).hexdigest()
+
+
+def slugify(text: str) -> str:
+    text = unicodedata.normalize("NFKD", text)
+    text = text.encode("ascii", "ignore").decode("ascii")
+    text = text.lower()
+    text = re.sub(r"[^a-z0-9]+", "-", text)
+    return text.strip("-") or "event"
 
 
 class User(UserMixin, db.Model):
@@ -137,6 +148,17 @@ class Event(db.Model):
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
+    ticket_types = db.relationship(
+        "TicketType",
+        back_populates="event",
+        order_by="TicketType.id",
+        cascade="all, delete-orphan",
+    )
+
+    @property
+    def capacity(self):
+        return sum(t.quantity_total for t in self.ticket_types if t.is_active)
+
     @property
     def is_upcoming(self):
         return self.start_datetime > utcnow()
@@ -144,3 +166,41 @@ class Event(db.Model):
     @property
     def type_label(self):
         return "LAN Party" if self.type == "lan" else "Board Game Night"
+
+
+class TicketType(db.Model):
+    __tablename__ = "ticket_types"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
+    name = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    price = db.Column(db.Numeric(10, 2), default=0.00, nullable=False)
+    quantity_total = db.Column(db.Integer, nullable=False)
+    seatable = db.Column(db.Boolean, default=False, nullable=False)
+    includes_lodging = db.Column(db.Boolean, default=False, nullable=False)
+    valid_days = db.Column(db.Text, nullable=False)  # JSON array of ISO date strings
+    max_per_user = db.Column(db.Integer, default=1, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+
+    event = db.relationship("Event", back_populates="ticket_types")
+
+    @property
+    def valid_days_list(self):
+        try:
+            return json.loads(self.valid_days)
+        except (ValueError, TypeError):
+            return []
+
+
+def unique_slug(base_slug: str, exclude_id: int = None) -> str:
+    slug, n = base_slug, 2
+    while True:
+        q = Event.query.filter_by(slug=slug)
+        if exclude_id is not None:
+            q = q.filter(Event.id != exclude_id)
+        if q.first() is None:
+            return slug
+        slug = f"{base_slug}-{n}"
+        n += 1

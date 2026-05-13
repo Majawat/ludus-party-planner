@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% set admin = true %}
+
+{% block title %}{{ event.name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+
+  <!-- Breadcrumb -->
+  <div class="breadcrumbs text-sm mb-6">
+    <ul>
+      <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+      <li>{{ event.name }}</li>
+    </ul>
+  </div>
+
+  <!-- Header -->
+  <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-3xl font-bold">{{ event.name }}</h1>
+      <span class="badge badge-outline mt-1">{{ event.type_label }}</span>
+    </div>
+    {% include "admin/events/_status_badge.html" %}
+  </div>
+
+  <!-- Event summary -->
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title text-lg">Event Details</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <div>
+          <span class="font-semibold">Start:</span>
+          {{ event.start_datetime.strftime('%A, %B %-d, %Y at %-I:%M %p') }}
+        </div>
+        <div>
+          <span class="font-semibold">End:</span>
+          {{ event.end_datetime.strftime('%A, %B %-d, %Y at %-I:%M %p') }}
+        </div>
+        <div>
+          <span class="font-semibold">Location:</span> {{ event.location }}
+        </div>
+        <div>
+          <span class="font-semibold">Capacity:</span>
+          {% if event.capacity > 0 %}
+            {{ event.capacity }} ({{ event.ticket_types | selectattr('is_active') | list | length }} active ticket type{{ 's' if event.ticket_types | selectattr('is_active') | list | length != 1 }})
+          {% else %}
+            No ticket types yet
+          {% endif %}
+        </div>
+        <div>
+          <span class="font-semibold">Registration:</span>
+          {% if event.registration_open %}Open{% else %}Closed{% endif %}
+          {% if event.registration_closes_at %}
+            (closes {{ event.registration_closes_at.strftime('%b %-d, %Y') }})
+          {% endif %}
+        </div>
+        <div>
+          <span class="font-semibold">Seating:</span>
+          {% if event.seating_enabled %}Enabled{% else %}Disabled{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+
+    <a href="{{ url_for('admin.event_edit', id=event.id) }}"
+       class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
+      <div class="card-body">
+        <h2 class="card-title">Edit Event</h2>
+        <p class="text-base-content/70 text-sm">Update name, dates, description, and settings.</p>
+      </div>
+    </a>
+
+    <a href="{{ url_for('admin.tickets_list', id=event.id) }}"
+       class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
+      <div class="card-body">
+        <div class="flex items-center justify-between">
+          <h2 class="card-title">Ticket Types</h2>
+          {% set active_count = event.ticket_types | selectattr('is_active') | list | length %}
+          <span class="badge badge-primary">{{ active_count }}</span>
+        </div>
+        <p class="text-base-content/70 text-sm">Manage ticket types, pricing, and quantities.</p>
+      </div>
+    </a>
+
+    <div class="card bg-base-200 shadow opacity-50 cursor-not-allowed">
+      <div class="card-body">
+        <h2 class="card-title">Registrations</h2>
+        <p class="text-base-content/70 text-sm">View and manage attendee registrations. <span class="badge badge-ghost badge-sm">Phase 5</span></p>
+      </div>
+    </div>
+
+    {% if event.status == 'published' %}
+    <a href="{{ url_for('public.event_detail', slug=event.slug) }}" target="_blank"
+       class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
+      <div class="card-body">
+        <h2 class="card-title">View Public Page ↗</h2>
+        <p class="text-base-content/70 text-sm">See how this event looks to attendees.</p>
+      </div>
+    </a>
+    {% else %}
+    <div class="card bg-base-200 shadow opacity-50 cursor-not-allowed">
+      <div class="card-body">
+        <h2 class="card-title">View Public Page</h2>
+        <p class="text-base-content/70 text-sm">Publish the event to make it visible to the public.</p>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Clone event -->
+  <div class="card bg-base-200 shadow">
+    <div class="card-body">
+      <h2 class="card-title text-lg">Clone Event</h2>
+      <p class="text-base-content/70 text-sm mb-4">
+        Creates a draft copy of this event with all its ticket types. Useful for recurring events.
+      </p>
+      <form method="POST" action="{{ url_for('admin.event_clone', id=event.id) }}">
+        {{ csrf_token() | safe if false }}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button type="submit" class="btn btn-outline btn-sm">Clone Event</button>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

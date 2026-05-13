@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% set admin = true %}
+
+{% block title %}{% if ticket %}Edit: {{ ticket.name }}{% else %}Add Ticket Type{% endif %} — Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto px-4 py-8">
+
+  <!-- Breadcrumb -->
+  <div class="breadcrumbs text-sm mb-6">
+    <ul>
+      <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+      <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+      <li><a href="{{ url_for('admin.tickets_list', id=event.id) }}">Ticket Types</a></li>
+      <li>{% if ticket %}{{ ticket.name }}{% else %}New{% endif %}</li>
+    </ul>
+  </div>
+
+  <h1 class="text-3xl font-bold mb-8">
+    {% if ticket %}Edit Ticket Type{% else %}Add Ticket Type{% endif %}
+  </h1>
+
+  <form method="POST">
+    {{ form.hidden_tag() }}
+
+    <!-- Basic Info -->
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Basic Info</h2>
+
+        <div class="form-control mb-4">
+          <label class="label" for="name">
+            <span class="label-text font-semibold">{{ form.name.label.text }}</span>
+          </label>
+          {{ form.name(id="name", class="input input-bordered w-full",
+              placeholder="e.g. Weekend Pass, Day Pass – Friday") }}
+          {% for error in form.name.errors %}
+            <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+          {% endfor %}
+        </div>
+
+        <div class="form-control">
+          <label class="label" for="description">
+            <span class="label-text font-semibold">{{ form.description.label.text }}</span>
+            <span class="label-text-alt text-base-content/60">Shown to users during registration</span>
+          </label>
+          {{ form.description(id="description", class="textarea textarea-bordered w-full h-24") }}
+          {% for error in form.description.errors %}
+            <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+          {% endfor %}
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Pricing & Capacity -->
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Pricing & Capacity</h2>
+
+        {% if ticket %}
+        <div class="alert alert-warning mb-4 text-sm">
+          Changing price, quantity, or seatable status after registrations exist will be
+          flagged as a warning in a future update.
+        </div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div class="form-control">
+            <label class="label" for="price">
+              <span class="label-text font-semibold">{{ form.price.label.text }}</span>
+            </label>
+            {{ form.price(id="price", class="input input-bordered w-full", placeholder="0.00") }}
+            {% for error in form.price.errors %}
+              <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+            {% endfor %}
+          </div>
+
+          <div class="form-control">
+            <label class="label" for="quantity_total">
+              <span class="label-text font-semibold">{{ form.quantity_total.label.text }}</span>
+            </label>
+            {{ form.quantity_total(id="quantity_total", class="input input-bordered w-full", placeholder="30") }}
+            {% for error in form.quantity_total.errors %}
+              <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+            {% endfor %}
+          </div>
+
+          <div class="form-control">
+            <label class="label" for="max_per_user">
+              <span class="label-text font-semibold">{{ form.max_per_user.label.text }}</span>
+            </label>
+            {{ form.max_per_user(id="max_per_user", class="input input-bordered w-full", placeholder="1") }}
+            {% for error in form.max_per_user.errors %}
+              <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Options -->
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Options</h2>
+
+        <div class="form-control mb-4">
+          <label class="label cursor-pointer justify-start gap-4">
+            {{ form.seatable(class="toggle toggle-primary") }}
+            <div>
+              <span class="label-text font-semibold">{{ form.seatable.label.text }}</span>
+              <p class="text-xs text-base-content/60">Allows holder to claim a seat in advance.</p>
+            </div>
+          </label>
+        </div>
+
+        <div class="form-control mb-4">
+          <label class="label cursor-pointer justify-start gap-4">
+            {{ form.includes_lodging(class="toggle toggle-primary") }}
+            <div>
+              <span class="label-text font-semibold">{{ form.includes_lodging.label.text }}</span>
+              <p class="text-xs text-base-content/60">Shows emergency contact fields during registration.</p>
+            </div>
+          </label>
+        </div>
+
+        <div class="form-control">
+          <label class="label cursor-pointer justify-start gap-4">
+            {{ form.is_active(class="toggle toggle-primary") }}
+            <div>
+              <span class="label-text font-semibold">{{ form.is_active.label.text }}</span>
+              <p class="text-xs text-base-content/60">Inactive tickets are hidden from registration but count toward history.</p>
+            </div>
+          </label>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Valid Days -->
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-2">Valid Days</h2>
+        <p class="text-sm text-base-content/70 mb-4">Which days of the event does this ticket cover?</p>
+
+        {% if available_days %}
+        <div class="flex flex-wrap gap-4">
+          {% for day in available_days %}
+          <label class="label cursor-pointer gap-2">
+            <input type="checkbox"
+                   name="valid_days"
+                   value="{{ day.isoformat() }}"
+                   class="checkbox checkbox-primary"
+                   {% if day.isoformat() in selected_days %}checked{% endif %} />
+            <span class="label-text">{{ day.strftime('%a, %b %-d') }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-base-content/50 text-sm">No days available — set the event's start and end dates first.</p>
+        {% endif %}
+
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex gap-3">
+      <button type="submit" class="btn btn-primary">
+        {% if ticket %}Update Ticket Type{% else %}Add Ticket Type{% endif %}
+      </button>
+      <a href="{{ url_for('admin.tickets_list', id=event.id) }}" class="btn btn-ghost">Cancel</a>
+    </div>
+
+  </form>
+</div>
+{% endblock %}

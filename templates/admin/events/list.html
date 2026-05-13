@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% set admin = true %}
+
+{% block title %}Events — Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-8">
+
+  <!-- Breadcrumb -->
+  <div class="breadcrumbs text-sm mb-6">
+    <ul>
+      <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li>Events</li>
+    </ul>
+  </div>
+
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-bold">Events</h1>
+    <a href="{{ url_for('admin.event_new') }}" class="btn btn-primary">+ New Event</a>
+  </div>
+
+  {% if events %}
+  <div class="card bg-base-200 shadow">
+    <div class="card-body p-0">
+      <div class="overflow-x-auto">
+        <table class="table table-zebra w-full">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Start Date</th>
+              <th>Capacity</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for event in events %}
+            <tr>
+              <td class="font-semibold">{{ event.name }}</td>
+              <td>
+                <span class="badge badge-outline">{{ event.type_label }}</span>
+              </td>
+              <td>
+                {% if event.status == 'published' %}
+                  <span class="badge badge-success">Published</span>
+                {% elif event.status == 'draft' %}
+                  <span class="badge badge-warning">Draft</span>
+                {% else %}
+                  <span class="badge badge-ghost">Archived</span>
+                {% endif %}
+              </td>
+              <td>{{ event.start_datetime.strftime('%b %-d, %Y') }}</td>
+              <td>{{ event.capacity if event.capacity > 0 else '—' }}</td>
+              <td class="flex gap-2">
+                <a href="{{ url_for('admin.event_detail', id=event.id) }}"
+                   class="btn btn-sm btn-primary">Manage</a>
+                <a href="{{ url_for('admin.event_edit', id=event.id) }}"
+                   class="btn btn-sm btn-ghost">Edit</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="hero bg-base-200 rounded-box py-16">
+    <div class="hero-content text-center">
+      <div>
+        <h2 class="text-2xl font-bold mb-2">No events yet</h2>
+        <p class="text-base-content/70 mb-6">Create your first event to get started.</p>
+        <a href="{{ url_for('admin.event_new') }}" class="btn btn-primary">Create Event</a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

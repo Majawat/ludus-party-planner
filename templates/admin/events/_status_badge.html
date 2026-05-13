@@ -1,0 +1,21 @@
+<div id="status-toggle">
+  <form hx-post="{{ url_for('admin.event_toggle_status', id=event.id) }}"
+        hx-target="#status-toggle"
+        hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <div class="join">
+      <button type="submit" name="status" value="draft"
+              class="btn join-item btn-sm {% if event.status == 'draft' %}btn-warning{% else %}btn-ghost{% endif %}">
+        Draft
+      </button>
+      <button type="submit" name="status" value="published"
+              class="btn join-item btn-sm {% if event.status == 'published' %}btn-success{% else %}btn-ghost{% endif %}">
+        Published
+      </button>
+      <button type="submit" name="status" value="archived"
+              class="btn join-item btn-sm {% if event.status == 'archived' %}btn-neutral{% else %}btn-ghost{% endif %}">
+        Archived
+      </button>
+    </div>
+  </form>
+</div>

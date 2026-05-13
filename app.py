@@ -7,7 +7,7 @@ from flask_mail import Mail
 from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
 
-from models import db, User, SiteSettings, Event
+from models import db, User, SiteSettings, Event, TicketType
 
 migrate = Migrate()
 login_manager = LoginManager()
