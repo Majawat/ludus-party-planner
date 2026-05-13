@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+      - ./static/uploads:/app/static/uploads
+    ports:
+      - "8000:8000"
+    env_file: .env

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}500 — Server Error{% endblock %}
+
+{% block content %}
+<div class="hero min-h-64">
+  <div class="hero-content text-center">
+    <div>
+      <h1 class="text-8xl font-bold text-error">500</h1>
+      <p class="text-2xl font-semibold mt-4">Internal Server Error</p>
+      <p class="mt-2 text-base-content/70">
+        Something went wrong on our end. Please try again shortly.
+      </p>
+      <a href="{{ url_for('public.index') }}" class="btn btn-primary mt-6">
+        Back to Home
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
