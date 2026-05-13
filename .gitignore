@@ -1,0 +1,19 @@
+# Secrets
+.env
+
+# Database (never commit this — it contains personal data)
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Uploads (future)
+static/uploads/
+
+# OS
+.DS_Store
+Thumbs.db
