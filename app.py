@@ -7,9 +7,7 @@ from flask_mail import Mail
 from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
 
-from models import db
-
-load_dotenv()
+from models import db, User
 
 migrate = Migrate()
 login_manager = LoginManager()
@@ -20,7 +18,9 @@ csrf = CSRFProtect()
 def create_app(test_config=None):
     app = Flask(__name__)
 
-    # --- Config ---
+    if test_config is None:
+        load_dotenv()
+
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-me")
     app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
         "DATABASE_URL", "sqlite:///data/ludus.db"
@@ -28,7 +28,7 @@ def create_app(test_config=None):
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     app.config["MAIL_SERVER"] = os.environ.get("MAIL_SERVER", "localhost")
-    app.config["MAIL_PORT"] = int(os.environ.get("MAIL_PORT", 587))
+    app.config["MAIL_PORT"] = int(os.environ.get("MAIL_PORT") or 587)
     app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
     app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
     app.config["MAIL_USE_TLS"] = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
@@ -37,15 +37,15 @@ def create_app(test_config=None):
     if test_config:
         app.config.update(test_config)
 
-    # Ensure the data directory exists for SQLite
+    # Flask-SQLAlchemy 3.x resolves relative SQLite paths to the instance folder.
+    # Convert relative paths to absolute relative to app.root_path instead, so the
+    # database stays at <project>/data/ludus.db rather than <project>/instance/data/ludus.db.
     db_url = app.config["SQLALCHEMY_DATABASE_URI"]
-    if db_url.startswith("sqlite:///") and ":memory:" not in db_url:
-        db_path = db_url.replace("sqlite:///", "")
-        if not os.path.isabs(db_path):
-            db_path = os.path.join(app.root_path, db_path)
+    if db_url.startswith("sqlite:///") and not db_url.startswith("sqlite:////") and ":memory:" not in db_url:
+        db_path = os.path.join(app.root_path, db_url.removeprefix("sqlite:///"))
+        app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-    # --- Extensions ---
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
@@ -55,21 +55,17 @@ def create_app(test_config=None):
     login_manager.login_view = "auth.login"
     login_manager.login_message_category = "warning"
 
-    # Placeholder user_loader — replaced in Phase 1 when the User model exists.
     @login_manager.user_loader
     def load_user(user_id):
-        return None
+        return db.session.get(User, int(user_id))
 
-    # --- Blueprints ---
     from routes import register_blueprints
     register_blueprints(app)
 
-    # --- Health check ---
     @app.route("/ping")
     def ping():
         return jsonify({"status": "ok"})
 
-    # --- Error handlers ---
     @app.errorhandler(404)
     def not_found(e):
         return render_template("errors/404.html"), 404
@@ -78,7 +74,6 @@ def create_app(test_config=None):
     def server_error(e):
         return render_template("errors/500.html"), 500
 
-    # --- CLI commands ---
     @app.cli.command("seed-settings")
     def seed_settings():
         """Seed site_settings with default values (idempotent)."""
