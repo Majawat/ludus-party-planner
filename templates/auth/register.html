@@ -3,8 +3,54 @@
 {% block title %}Register — Ludus Party Planner{% endblock %}
 
 {% block content %}
-<h1 class="text-3xl font-bold mb-6">Register</h1>
-<div class="alert alert-info">
-  <span>Registration form coming soon.</span>
+<div class="max-w-md mx-auto">
+  <h1 class="text-3xl font-bold mb-6">Create Account</h1>
+  <form method="POST" action="{{ url_for('auth.register') }}" class="space-y-4">
+    {{ form.hidden_tag() }}
+
+    <div class="honeypot-field" aria-hidden="true">
+      {{ form.website.label }}
+      {{ form.website(autocomplete="off", tabindex="-1") }}
+    </div>
+
+    <div class="form-control">
+      {{ form.name.label(class="label label-text") }}
+      {{ form.name(class="input input-bordered w-full", placeholder="Your name") }}
+      {% for error in form.name.errors %}
+        <p class="text-error text-sm mt-1">{{ error }}</p>
+      {% endfor %}
+    </div>
+    <div class="form-control">
+      {{ form.email.label(class="label label-text") }}
+      {{ form.email(class="input input-bordered w-full", placeholder="you@example.com") }}
+      {% for error in form.email.errors %}
+        <p class="text-error text-sm mt-1">{{ error }}</p>
+      {% endfor %}
+    </div>
+    <div class="form-control">
+      {{ form.password.label(class="label label-text") }}
+      {{ form.password(class="input input-bordered w-full") }}
+      {% for error in form.password.errors %}
+        <p class="text-error text-sm mt-1">{{ error }}</p>
+      {% endfor %}
+    </div>
+    <div class="form-control">
+      {{ form.confirm_password.label(class="label label-text") }}
+      {{ form.confirm_password(class="input input-bordered w-full") }}
+      {% for error in form.confirm_password.errors %}
+        <p class="text-error text-sm mt-1">{{ error }}</p>
+      {% endfor %}
+    </div>
+    <div class="form-control">
+      <label class="label cursor-pointer justify-start gap-3">
+        {{ form.newsletter_opt_in() }}
+        <span class="label-text">{{ form.newsletter_opt_in.label.text }}</span>
+      </label>
+    </div>
+    <button type="submit" class="btn btn-primary w-full">Create Account</button>
+  </form>
+  <p class="mt-4 text-center">
+    Already have an account? <a href="{{ url_for('auth.login') }}" class="link">Login</a>
+  </p>
 </div>
 {% endblock %}
