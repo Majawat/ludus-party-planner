@@ -1,10 +1,145 @@
 {% extends "base.html" %}
 
-{% block title %}Admin Settings — Ludus Party Planner{% endblock %}
+{% block title %}Site Settings — Admin{% endblock %}
 
 {% block content %}
-<h1 class="text-3xl font-bold mb-6">Admin Settings</h1>
-<div class="alert alert-info">
-  <span>Site settings coming soon.</span>
+<div class="max-w-3xl mx-auto">
+  <h1 class="text-3xl font-bold mb-8">Site Settings</h1>
+
+  <form method="POST" action="{{ url_for('admin.settings') }}">
+    {{ form.hidden_tag() }}
+
+    {# --- Branding --- #}
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Branding</h2>
+
+        <div class="form-control mb-4">
+          {{ form.site_name.label(class="label label-text font-semibold") }}
+          {{ form.site_name(class="input input-bordered w-full") }}
+          {% for error in form.site_name.errors %}
+            <span class="label-text-alt text-error">{{ error }}</span>
+          {% endfor %}
+        </div>
+
+        <div class="form-control mb-4">
+          {{ form.site_tagline.label(class="label label-text font-semibold") }}
+          {{ form.site_tagline(class="input input-bordered w-full") }}
+        </div>
+
+        <div class="form-control mb-4">
+          {{ form.contact_email.label(class="label label-text font-semibold") }}
+          {{ form.contact_email(class="input input-bordered w-full", type="email") }}
+          {% for error in form.contact_email.errors %}
+            <span class="label-text-alt text-error">{{ error }}</span>
+          {% endfor %}
+        </div>
+
+        <div class="form-control mb-4">
+          {{ form.logo_url.label(class="label label-text font-semibold") }}
+          {{ form.logo_url(class="input input-bordered w-full", placeholder="https://…") }}
+        </div>
+
+        <div class="form-control">
+          {{ form.favicon_url.label(class="label label-text font-semibold") }}
+          {{ form.favicon_url(class="input input-bordered w-full", placeholder="https://…") }}
+        </div>
+      </div>
+    </div>
+
+    {# --- Appearance --- #}
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Appearance</h2>
+        <p class="text-sm text-base-content/70 mb-4">
+          Changes apply to the public-facing site immediately. Admin pages always use the <strong>dim</strong> theme.
+        </p>
+
+        <div class="form-control">
+          {{ form.ui_theme.label(class="label label-text font-semibold") }}
+          {{ form.ui_theme(class="select select-bordered w-full max-w-xs") }}
+        </div>
+      </div>
+    </div>
+
+    {# --- Registration & Display --- #}
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Registration &amp; Display</h2>
+
+        <div class="form-control mb-4">
+          <label class="label cursor-pointer justify-start gap-4">
+            {{ form.registration_enabled(class="toggle toggle-primary") }}
+            <span class="label-text">{{ form.registration_enabled.label.text }}</span>
+          </label>
+          <p class="text-sm text-base-content/70 ml-14">
+            When disabled, the registration form is hidden site-wide regardless of individual event settings.
+          </p>
+        </div>
+
+        <div class="form-control">
+          <label class="label cursor-pointer justify-start gap-4">
+            {{ form.show_upcoming_event_on_homepage(class="toggle toggle-primary") }}
+            <span class="label-text">{{ form.show_upcoming_event_on_homepage.label.text }}</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    {# --- Social & Payment --- #}
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Social &amp; Payment</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="form-control">
+            {{ form.discord_url.label(class="label label-text font-semibold") }}
+            {{ form.discord_url(class="input input-bordered w-full", placeholder="https://discord.gg/…") }}
+          </div>
+          <div class="form-control">
+            {{ form.twitch_url.label(class="label label-text font-semibold") }}
+            {{ form.twitch_url(class="input input-bordered w-full", placeholder="https://twitch.tv/…") }}
+          </div>
+          <div class="form-control">
+            {{ form.youtube_url.label(class="label label-text font-semibold") }}
+            {{ form.youtube_url(class="input input-bordered w-full", placeholder="https://youtube.com/…") }}
+          </div>
+          <div class="form-control">
+            {{ form.instagram_url.label(class="label label-text font-semibold") }}
+            {{ form.instagram_url(class="input input-bordered w-full", placeholder="https://instagram.com/…") }}
+          </div>
+          <div class="form-control">
+            {{ form.facebook_url.label(class="label label-text font-semibold") }}
+            {{ form.facebook_url(class="input input-bordered w-full", placeholder="https://facebook.com/…") }}
+          </div>
+          <div class="form-control">
+            {{ form.venmo_handle.label(class="label label-text font-semibold") }}
+            {{ form.venmo_handle(class="input input-bordered w-full", placeholder="@handle") }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# --- Legal --- #}
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Legal</h2>
+
+        <div class="form-control mb-4">
+          {{ form.terms_of_service.label(class="label label-text font-semibold") }}
+          {{ form.terms_of_service(class="textarea textarea-bordered w-full", rows=6) }}
+        </div>
+
+        <div class="form-control">
+          {{ form.privacy_policy.label(class="label label-text font-semibold") }}
+          {{ form.privacy_policy(class="textarea textarea-bordered w-full", rows=6) }}
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-end">
+      <button type="submit" class="btn btn-primary">Save Settings</button>
+    </div>
+  </form>
 </div>
 {% endblock %}
