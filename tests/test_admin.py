@@ -342,3 +342,50 @@ def test_admin_event_capacity_computed_from_tickets(app, published_event, ticket
     db.session.commit()
     db.session.refresh(published_event)
     assert published_event.capacity == 40
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Dynamic admin route security sweep
+# ---------------------------------------------------------------------------
+
+def _dynamic_admin_routes(published_event, ticket_type):
+    return [
+        f"/admin/events/{published_event.id}",
+        f"/admin/events/{published_event.id}/edit",
+        f"/admin/events/{published_event.id}/tickets",
+        f"/admin/events/{published_event.id}/tickets/new",
+        f"/admin/events/{published_event.id}/tickets/{ticket_type.id}/edit",
+    ]
+
+
+def test_dynamic_admin_routes_redirect_unauthenticated(client, published_event, ticket_type):
+    for route in _dynamic_admin_routes(published_event, ticket_type):
+        response = client.get(route)
+        assert response.status_code == 302, f"{route} should redirect unauthenticated"
+        assert "/login" in response.headers["Location"], f"{route} should redirect to login"
+
+
+def test_dynamic_admin_routes_return_403_for_non_admin(client, regular_user, published_event, ticket_type):
+    _login(client, "user@example.com", "userpass123")
+    for route in _dynamic_admin_routes(published_event, ticket_type):
+        response = client.get(route)
+        assert response.status_code == 403, f"{route} should return 403 for non-admin"
+
+
+def test_dynamic_admin_routes_return_200_for_admin(client, admin_user, published_event, ticket_type):
+    _login(client, "admin@example.com", "adminpass123")
+    for route in _dynamic_admin_routes(published_event, ticket_type):
+        response = client.get(route)
+        assert response.status_code == 200, f"{route} should return 200 for admin"
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Cascade delete
+# ---------------------------------------------------------------------------
+
+def test_event_delete_cascades_to_ticket_types(app, published_event, ticket_type):
+    event_id = published_event.id
+    assert TicketType.query.filter_by(event_id=event_id).count() == 1
+    db.session.delete(published_event)
+    db.session.commit()
+    assert TicketType.query.filter_by(event_id=event_id).count() == 0

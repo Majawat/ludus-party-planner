@@ -99,3 +99,23 @@ def test_seed_event_command_idempotent(app):
     assert "already exists" in result2.output
 
     assert Event.query.count() == 1
+
+
+def test_event_detail_404_for_archived(client):
+    from datetime import datetime
+    event = Event(
+        name="Old LAN Party",
+        slug="old-lan-party",
+        type="lan",
+        status="archived",
+        start_datetime=datetime(2024, 3, 1, 18, 0, 0),
+        end_datetime=datetime(2024, 3, 3, 18, 0, 0),
+        location="Old Venue",
+        seating_enabled=False,
+        registration_open=False,
+    )
+    _db.session.add(event)
+    _db.session.commit()
+
+    response = client.get("/events/old-lan-party")
+    assert response.status_code == 404
