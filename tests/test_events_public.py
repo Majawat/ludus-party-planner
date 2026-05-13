@@ -84,10 +84,31 @@ def test_event_detail_shows_board_game_badge(client, past_event):
     assert b"Board Game Night" in response.data
 
 
-def test_event_detail_no_register_button(client, published_event):
-    # Event registration is Phase 5 — the /register route for event sign-up must not exist yet
+def test_event_detail_shows_login_to_register_when_logged_out(client, published_event, ticket_type):
     response = client.get("/events/test-lan-party")
-    assert b"/events/test-lan-party/register" not in response.data
+    assert response.status_code == 200
+    assert b"Log in to Register" in response.data
+
+
+def test_event_detail_shows_register_button_for_verified_user(client, regular_user, published_event, ticket_type):
+    client.post("/login", data={"email": regular_user.email, "password": "userpass123"})
+    response = client.get("/events/test-lan-party")
+    assert response.status_code == 200
+    assert b"Register Now" in response.data
+
+
+def test_event_detail_shows_view_registration_when_registered(client, regular_user, published_event, ticket_type, registration):
+    client.post("/login", data={"email": regular_user.email, "password": "userpass123"})
+    response = client.get("/events/test-lan-party")
+    assert response.status_code == 200
+    assert b"View My Registration" in response.data
+
+
+def test_event_detail_shows_attendee_list(client, regular_user, published_event, ticket_type, registration):
+    response = client.get("/events/test-lan-party")
+    assert response.status_code == 200
+    assert b"Attendees" in response.data
+    assert b"Regular" in response.data
 
 
 def test_seed_event_command_idempotent(app):

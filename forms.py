@@ -7,6 +7,7 @@ from wtforms import (
     PasswordField,
     SelectField,
     StringField,
+    SubmitField,
     TextAreaField,
 )
 from wtforms.validators import DataRequired, Email, EqualTo, Length, NumberRange, Optional
@@ -109,6 +110,13 @@ class TicketTypeForm(FlaskForm):
     is_active = BooleanField("Active (available for purchase)")
     # valid_days handled via request.form.getlist("valid_days") in routes —
     # checkboxes are generated dynamically from the event's date range
+
+
+class EventRegistrationForm(FlaskForm):
+    ticket_type_id = SelectField("Ticket Type", coerce=int, validators=[DataRequired()])
+    emergency_contact_name = StringField("Emergency Contact Name", validators=[Optional(), Length(max=200)])
+    emergency_contact_phone = StringField("Emergency Contact Phone", validators=[Optional(), Length(max=50)])
+    submit = SubmitField("Register")
 
 
 class AdminSettingsForm(FlaskForm):

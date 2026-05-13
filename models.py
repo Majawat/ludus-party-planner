@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import UniqueConstraint
 from werkzeug.security import check_password_hash, generate_password_hash
 
 db = SQLAlchemy()
@@ -154,6 +155,11 @@ class Event(db.Model):
         order_by="TicketType.id",
         cascade="all, delete-orphan",
     )
+    registrations = db.relationship(
+        "Registration",
+        back_populates="event",
+        order_by="Registration.created_at",
+    )
 
     @property
     def capacity(self):
@@ -185,6 +191,7 @@ class TicketType(db.Model):
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
 
     event = db.relationship("Event", back_populates="ticket_types")
+    registrations = db.relationship("Registration", back_populates="ticket_type")
 
     @property
     def valid_days_list(self):
@@ -192,6 +199,53 @@ class TicketType(db.Model):
             return json.loads(self.valid_days)
         except (ValueError, TypeError):
             return []
+
+    @property
+    def quantity_sold(self):
+        return Registration.query.filter(
+            Registration.ticket_type_id == self.id,
+            Registration.status != "cancelled",
+        ).count()
+
+
+class Seat(db.Model):
+    __tablename__ = "seats"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
+    label = db.Column(db.Text, nullable=False)
+    display_order = db.Column(db.Integer, nullable=False, default=0)
+
+    event = db.relationship("Event", backref="seats")
+
+
+class Registration(db.Model):
+    __tablename__ = "registrations"
+    __table_args__ = (UniqueConstraint("user_id", "event_id"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
+    ticket_type_id = db.Column(db.Integer, db.ForeignKey("ticket_types.id"), nullable=False)
+    seat_id = db.Column(db.Integer, db.ForeignKey("seats.id"), nullable=True)
+    status = db.Column(db.Text, nullable=False, default="pending")
+    payment_status = db.Column(db.Text, nullable=False, default="unpaid")
+    payment_method = db.Column(db.Text, nullable=True)
+    paid_at = db.Column(db.DateTime, nullable=True)
+    checked_in_at = db.Column(db.DateTime, nullable=True)
+    checkin_code = db.Column(db.Text, nullable=False, unique=True)
+    needs_loaner = db.Column(db.Boolean, default=False, nullable=False)
+    emergency_contact_name = db.Column(db.Text, nullable=True)
+    emergency_contact_phone = db.Column(db.Text, nullable=True)
+    terms_accepted_at = db.Column(db.DateTime, nullable=True)
+    admin_notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+    user = db.relationship("User", backref="registrations")
+    event = db.relationship("Event", back_populates="registrations")
+    ticket_type = db.relationship("TicketType", back_populates="registrations")
+    seat = db.relationship("Seat", backref="registrations")
 
 
 def unique_slug(base_slug: str, exclude_id: int = None) -> str:

@@ -4,5 +4,57 @@
 
 {% block content %}
 <h1 class="text-3xl font-bold mb-6">Dashboard</h1>
-<p class="text-base-content/70">You have no event registrations yet.</p>
+
+{% if registrations %}
+  <div class="overflow-x-auto">
+    <table class="table table-zebra w-full">
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th>Date</th>
+          <th>Ticket</th>
+          <th>Status</th>
+          <th>Payment</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for reg in registrations %}
+          <tr>
+            <td class="font-semibold">{{ reg.event.name }}</td>
+            <td class="text-sm text-base-content/70">{{ reg.event.start_datetime.strftime('%b %-d, %Y') }}</td>
+            <td class="text-sm">{{ reg.ticket_type.name }}</td>
+            <td>
+              {% if reg.status == 'confirmed' %}
+                <span class="badge badge-success badge-sm">Confirmed</span>
+              {% elif reg.status == 'cancelled' %}
+                <span class="badge badge-error badge-sm">Cancelled</span>
+              {% else %}
+                <span class="badge badge-warning badge-sm">{{ reg.status | capitalize }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if reg.payment_status == 'paid' %}
+                <span class="badge badge-success badge-sm">Paid</span>
+              {% elif reg.payment_status == 'comped' %}
+                <span class="badge badge-info badge-sm">Comped</span>
+              {% elif reg.status != 'cancelled' %}
+                <span class="badge badge-warning badge-sm">Unpaid</span>
+              {% else %}
+                <span class="text-base-content/40 text-sm">—</span>
+              {% endif %}
+            </td>
+            <td>
+              <a href="{{ url_for('account.my_registration', slug=reg.event.slug) }}"
+                 class="btn btn-ghost btn-xs">View</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="text-base-content/70">You have no event registrations yet.</p>
+  <a href="{{ url_for('public.events') }}" class="btn btn-primary mt-4">Browse Events</a>
+{% endif %}
 {% endblock %}
