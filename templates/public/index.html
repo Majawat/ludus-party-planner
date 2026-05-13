@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Ludus Party Planner{% endblock %}
+{% block title %}{{ site_name }}{% endblock %}
 
 {% block content %}
 <div class="hero min-h-64 bg-base-200 rounded-box">
   <div class="hero-content text-center">
     <div>
-      <h1 class="text-5xl font-bold">Welcome to Ludus Party Planner</h1>
-      <p class="py-6 text-base-content/70">Board Games &amp; LAN Parties</p>
+      <h1 class="text-5xl font-bold">Welcome to {{ site_name }}</h1>
+      <p class="py-6 text-base-content/70">{{ site_tagline }}</p>
       <a href="{{ url_for('public.events') }}" class="btn btn-primary">View Events</a>
     </div>
   </div>
