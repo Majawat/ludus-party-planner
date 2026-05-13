@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% set admin = true %}
+
+{% block title %}{% if event %}Edit: {{ event.name }}{% else %}Create Event{% endif %} — Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 py-8">
+
+  <!-- Breadcrumb -->
+  <div class="breadcrumbs text-sm mb-6">
+    <ul>
+      <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+      {% if event %}
+      <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+      <li>Edit</li>
+      {% else %}
+      <li>New Event</li>
+      {% endif %}
+    </ul>
+  </div>
+
+  <h1 class="text-3xl font-bold mb-8">
+    {% if event %}Edit Event{% else %}Create Event{% endif %}
+  </h1>
+
+  <form method="POST">
+    {{ form.hidden_tag() }}
+
+    <!-- Identity -->
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Identity</h2>
+
+        <div class="form-control mb-4">
+          <label class="label" for="name">
+            <span class="label-text font-semibold">{{ form.name.label.text }}</span>
+          </label>
+          {{ form.name(id="name", class="input input-bordered w-full") }}
+          {% for error in form.name.errors %}
+            <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+          {% endfor %}
+        </div>
+
+        <div class="form-control mb-4">
+          <label class="label" for="slug">
+            <span class="label-text font-semibold">{{ form.slug.label.text }}</span>
+            <span class="label-text-alt text-base-content/60">Leave blank to auto-generate from name</span>
+          </label>
+          {{ form.slug(id="slug", class="input input-bordered w-full", placeholder="my-event-slug") }}
+          {% for error in form.slug.errors %}
+            <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+          {% endfor %}
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="form-control">
+            <label class="label" for="type">
+              <span class="label-text font-semibold">{{ form.type.label.text }}</span>
+            </label>
+            {{ form.type(id="type", class="select select-bordered w-full") }}
+            {% for error in form.type.errors %}
+              <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+            {% endfor %}
+          </div>
+
+          <div class="form-control">
+            <label class="label" for="status">
+              <span class="label-text font-semibold">{{ form.status.label.text }}</span>
+            </label>
+            {{ form.status(id="status", class="select select-bordered w-full") }}
+            {% for error in form.status.errors %}
+              <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Schedule -->
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Schedule & Location</h2>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div class="form-control">
+            <label class="label" for="start_datetime">
+              <span class="label-text font-semibold">{{ form.start_datetime.label.text }}</span>
+            </label>
+            {{ form.start_datetime(id="start_datetime", class="input input-bordered w-full") }}
+            {% for error in form.start_datetime.errors %}
+              <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+            {% endfor %}
+          </div>
+
+          <div class="form-control">
+            <label class="label" for="end_datetime">
+              <span class="label-text font-semibold">{{ form.end_datetime.label.text }}</span>
+            </label>
+            {{ form.end_datetime(id="end_datetime", class="input input-bordered w-full") }}
+            {% for error in form.end_datetime.errors %}
+              <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="form-control">
+          <label class="label" for="location">
+            <span class="label-text font-semibold">{{ form.location.label.text }}</span>
+          </label>
+          {{ form.location(id="location", class="input input-bordered w-full") }}
+          {% for error in form.location.errors %}
+            <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+          {% endfor %}
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Content</h2>
+
+        <div class="form-control mb-4">
+          <label class="label" for="short_description">
+            <span class="label-text font-semibold">{{ form.short_description.label.text }}</span>
+            <span class="label-text-alt text-base-content/60">One-liner shown on event cards</span>
+          </label>
+          {{ form.short_description(id="short_description", class="input input-bordered w-full") }}
+          {% for error in form.short_description.errors %}
+            <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+          {% endfor %}
+        </div>
+
+        <div class="form-control">
+          <label class="label" for="description">
+            <span class="label-text font-semibold">{{ form.description.label.text }}</span>
+            <span class="label-text-alt text-base-content/60">HTML accepted</span>
+          </label>
+          {{ form.description(id="description", class="textarea textarea-bordered w-full h-40") }}
+          {% for error in form.description.errors %}
+            <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+          {% endfor %}
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Media -->
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Media</h2>
+
+        <div class="form-control mb-4">
+          <label class="label" for="cover_image_url">
+            <span class="label-text font-semibold">{{ form.cover_image_url.label.text }}</span>
+          </label>
+          {{ form.cover_image_url(id="cover_image_url", class="input input-bordered w-full", placeholder="https://...") }}
+          {% for error in form.cover_image_url.errors %}
+            <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+          {% endfor %}
+        </div>
+
+        <div class="form-control">
+          <label class="label" for="gallery_url">
+            <span class="label-text font-semibold">{{ form.gallery_url.label.text }}</span>
+            <span class="label-text-alt text-base-content/60">Google Photos, Flickr, etc.</span>
+          </label>
+          {{ form.gallery_url(id="gallery_url", class="input input-bordered w-full", placeholder="https://...") }}
+          {% for error in form.gallery_url.errors %}
+            <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+          {% endfor %}
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Registration Settings</h2>
+
+        <div class="form-control mb-4">
+          <label class="label cursor-pointer justify-start gap-4">
+            {{ form.seating_enabled(class="toggle toggle-primary") }}
+            <div>
+              <span class="label-text font-semibold">{{ form.seating_enabled.label.text }}</span>
+              <p class="text-xs text-base-content/60">Enable for LAN events where attendees pick seats.</p>
+            </div>
+          </label>
+        </div>
+
+        <div class="form-control mb-4">
+          <label class="label cursor-pointer justify-start gap-4">
+            {{ form.registration_open(class="toggle toggle-primary") }}
+            <div>
+              <span class="label-text font-semibold">{{ form.registration_open.label.text }}</span>
+              <p class="text-xs text-base-content/60">Manual override to open or close registration.</p>
+            </div>
+          </label>
+        </div>
+
+        <div class="form-control">
+          <label class="label" for="registration_closes_at">
+            <span class="label-text font-semibold">{{ form.registration_closes_at.label.text }}</span>
+            <span class="label-text-alt text-base-content/60">Optional — auto-closes registration at this time</span>
+          </label>
+          {{ form.registration_closes_at(id="registration_closes_at", class="input input-bordered w-full") }}
+          {% for error in form.registration_closes_at.errors %}
+            <label class="label"><span class="label-text-alt text-error">{{ error }}</span></label>
+          {% endfor %}
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex gap-3">
+      <button type="submit" class="btn btn-primary">
+        {% if event %}Update Event{% else %}Create Event{% endif %}
+      </button>
+      {% if event %}
+        <a href="{{ url_for('admin.event_detail', id=event.id) }}" class="btn btn-ghost">Cancel</a>
+      {% else %}
+        <a href="{{ url_for('admin.events_list') }}" class="btn btn-ghost">Cancel</a>
+      {% endif %}
+    </div>
+
+  </form>
+</div>
+{% endblock %}

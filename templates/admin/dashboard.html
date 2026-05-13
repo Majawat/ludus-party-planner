@@ -1,10 +1,54 @@
 {% extends "base.html" %}
+{% set admin = true %}
 
 {% block title %}Admin Dashboard — {{ site_name }}{% endblock %}
 
 {% block content %}
-<h1 class="text-3xl font-bold mb-6">Admin Dashboard</h1>
-<div class="alert alert-info">
-  <span>Admin dashboard coming soon.</span>
+<div class="max-w-4xl mx-auto px-4 py-8">
+
+  <h1 class="text-3xl font-bold mb-8">Admin Dashboard</h1>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+    <a href="{{ url_for('admin.events_list') }}"
+       class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
+      <div class="card-body">
+        <div class="flex items-center justify-between">
+          <h2 class="card-title">Events</h2>
+          <span class="badge badge-primary">{{ event_count }}</span>
+        </div>
+        <p class="text-base-content/70 text-sm">Create and manage events, ticket types, and registrations.</p>
+      </div>
+    </a>
+
+    <a href="{{ url_for('admin.settings') }}"
+       class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
+      <div class="card-body">
+        <h2 class="card-title">Settings</h2>
+        <p class="text-base-content/70 text-sm">Site name, theme, social links, and legal pages.</p>
+      </div>
+    </a>
+
+    <div class="card bg-base-200 shadow opacity-50 cursor-not-allowed">
+      <div class="card-body">
+        <div class="flex items-center gap-2">
+          <h2 class="card-title">Users</h2>
+          <span class="badge badge-ghost badge-sm">Phase 8</span>
+        </div>
+        <p class="text-base-content/70 text-sm">Manage user accounts, promote admins, comp tickets.</p>
+      </div>
+    </div>
+
+    <div class="card bg-base-200 shadow opacity-50 cursor-not-allowed">
+      <div class="card-body">
+        <div class="flex items-center gap-2">
+          <h2 class="card-title">Mass Email</h2>
+          <span class="badge badge-ghost badge-sm">Phase 9</span>
+        </div>
+        <p class="text-base-content/70 text-sm">Email all registrants for an event.</p>
+      </div>
+    </div>
+
+  </div>
 </div>
 {% endblock %}

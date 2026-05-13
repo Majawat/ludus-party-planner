@@ -1,6 +1,15 @@
 from flask_wtf import FlaskForm
-from wtforms import BooleanField, PasswordField, SelectField, StringField, TextAreaField
-from wtforms.validators import DataRequired, Email, EqualTo, Length, Optional
+from wtforms import (
+    BooleanField,
+    DateTimeLocalField,
+    DecimalField,
+    IntegerField,
+    PasswordField,
+    SelectField,
+    StringField,
+    TextAreaField,
+)
+from wtforms.validators import DataRequired, Email, EqualTo, Length, NumberRange, Optional
 
 _THEME_CHOICES = [
     ("dark", "Dark"),
@@ -48,6 +57,58 @@ class ResetPasswordForm(FlaskForm):
     confirm_password = PasswordField(
         "Confirm Password", validators=[DataRequired(), EqualTo("password")]
     )
+
+
+class EventForm(FlaskForm):
+    name = StringField("Event Name", validators=[DataRequired(), Length(max=200)])
+    slug = StringField("URL Slug", validators=[Optional(), Length(max=200)])
+    type = SelectField(
+        "Event Type",
+        choices=[("lan", "LAN Party"), ("board_game", "Board Game Night")],
+        validators=[DataRequired()],
+    )
+    status = SelectField(
+        "Status",
+        choices=[("draft", "Draft"), ("published", "Published"), ("archived", "Archived")],
+        validators=[DataRequired()],
+    )
+    short_description = StringField(
+        "Short Description", validators=[Optional(), Length(max=300)]
+    )
+    description = TextAreaField("Full Description (HTML)", validators=[Optional()])
+    start_datetime = DateTimeLocalField(
+        "Start Date & Time", format="%Y-%m-%dT%H:%M", validators=[DataRequired()]
+    )
+    end_datetime = DateTimeLocalField(
+        "End Date & Time", format="%Y-%m-%dT%H:%M", validators=[DataRequired()]
+    )
+    location = StringField("Location", validators=[DataRequired(), Length(max=300)])
+    cover_image_url = StringField("Cover Image URL", validators=[Optional()])
+    gallery_url = StringField("Gallery URL", validators=[Optional()])
+    seating_enabled = BooleanField("Seating Enabled")
+    registration_open = BooleanField("Registration Open")
+    registration_closes_at = DateTimeLocalField(
+        "Registration Closes At", format="%Y-%m-%dT%H:%M", validators=[Optional()]
+    )
+
+
+class TicketTypeForm(FlaskForm):
+    name = StringField("Ticket Name", validators=[DataRequired(), Length(max=200)])
+    description = TextAreaField("Description", validators=[Optional()])
+    price = DecimalField(
+        "Price ($)", places=2, default=0.00, validators=[Optional(), NumberRange(min=0)]
+    )
+    quantity_total = IntegerField(
+        "Total Quantity", validators=[DataRequired(), NumberRange(min=1)]
+    )
+    seatable = BooleanField("Grants a Seat (LAN events)")
+    includes_lodging = BooleanField("Includes Lodging")
+    max_per_user = IntegerField(
+        "Max Per User", default=1, validators=[DataRequired(), NumberRange(min=1)]
+    )
+    is_active = BooleanField("Active (available for purchase)")
+    # valid_days handled via request.form.getlist("valid_days") in routes —
+    # checkboxes are generated dynamically from the event's date range
 
 
 class AdminSettingsForm(FlaskForm):

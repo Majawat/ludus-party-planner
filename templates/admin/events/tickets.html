@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% set admin = true %}
+
+{% block title %}Ticket Types — {{ event.name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 py-8">
+
+  <!-- Breadcrumb -->
+  <div class="breadcrumbs text-sm mb-6">
+    <ul>
+      <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+      <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+      <li>Ticket Types</li>
+    </ul>
+  </div>
+
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-bold">Ticket Types</h1>
+    <a href="{{ url_for('admin.ticket_new', id=event.id) }}" class="btn btn-primary">+ Add Ticket Type</a>
+  </div>
+
+  {% if event.ticket_types %}
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body p-0">
+      <div class="overflow-x-auto">
+        <table class="table table-zebra w-full">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Price</th>
+              <th>Qty Total</th>
+              <th>Qty Sold</th>
+              <th>Valid Days</th>
+              <th>Seatable</th>
+              <th>Active</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ticket in event.ticket_types %}
+            <tr>
+              <td class="font-semibold">{{ ticket.name }}</td>
+              <td>
+                {% if ticket.price == 0 %}
+                  <span class="text-base-content/60">Free</span>
+                {% else %}
+                  ${{ "%.2f"|format(ticket.price|float) }}
+                {% endif %}
+              </td>
+              <td>{{ ticket.quantity_total }}</td>
+              <td class="text-base-content/50">—<!-- Phase 5: replace with actual count --></td>
+              <td>
+                {% set days = ticket.valid_days_list %}
+                {{ days | length }} day{{ 's' if days | length != 1 }}
+              </td>
+              <td>
+                {% if ticket.seatable %}
+                  <span class="badge badge-success badge-sm">Yes</span>
+                {% else %}
+                  <span class="badge badge-ghost badge-sm">No</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if ticket.is_active %}
+                  <span class="badge badge-success badge-sm">Active</span>
+                {% else %}
+                  <span class="badge badge-ghost badge-sm">Inactive</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="{{ url_for('admin.ticket_edit', id=event.id, tid=ticket.id) }}"
+                   class="btn btn-sm btn-ghost">Edit</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-sm text-base-content/60">
+    Total capacity: <strong>{{ event.capacity }}</strong>
+    (sum of active ticket quantities)
+  </div>
+
+  {% else %}
+  <div class="hero bg-base-200 rounded-box py-16">
+    <div class="hero-content text-center">
+      <div>
+        <h2 class="text-2xl font-bold mb-2">No ticket types yet</h2>
+        <p class="text-base-content/70 mb-6">Add ticket types to set capacity and pricing for this event.</p>
+        <a href="{{ url_for('admin.ticket_new', id=event.id) }}" class="btn btn-primary">Add Ticket Type</a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
