@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="{% if request.path.startswith('/admin') %}dim{% else %}{{ ui_theme | default('dark') }}{% endif %}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Ludus Party Planner{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ludus.css') }}" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { plugins: [] }</script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.23/dist/full.min.css" rel="stylesheet" />
+  <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Navbar -->
+  <div class="navbar bg-base-300 shadow-md">
+    <div class="navbar-start">
+      <a href="{{ url_for('public.index') }}" class="btn btn-ghost text-xl font-bold">
+        Ludus Party Planner
+      </a>
+    </div>
+    <div class="navbar-center hidden lg:flex">
+      <ul class="menu menu-horizontal px-1">
+        <li><a href="{{ url_for('public.events') }}">Events</a></li>
+      </ul>
+    </div>
+    <div class="navbar-end gap-2">
+      <a href="{{ url_for('auth.login') }}" class="btn btn-ghost btn-sm">Login</a>
+      <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-sm">Register</a>
+    </div>
+  </div>
+
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="container mx-auto px-4 pt-4 space-y-2">
+        {% for category, message in messages %}
+          {% set alert_class = {
+            'success': 'alert-success',
+            'error': 'alert-error',
+            'warning': 'alert-warning'
+          }.get(category, 'alert-info') %}
+          <div class="alert {{ alert_class }} shadow-sm">
+            <span>{{ message }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Main content -->
+  <main class="flex-1 container mx-auto px-4 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer footer-center p-4 bg-base-300 text-base-content">
+    <aside>
+      <p>Ludus Party Planner</p>
+    </aside>
+  </footer>
+
+</body>
+</html>
