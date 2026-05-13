@@ -4,7 +4,47 @@
 
 {% block content %}
 <h1 class="text-3xl font-bold mb-6">Events</h1>
-<div class="alert alert-info">
-  <span>Event listing coming soon.</span>
-</div>
+
+{% if events %}
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for event in events %}
+      <div class="card bg-base-200 shadow-md hover:shadow-xl transition-shadow">
+        {% if event.cover_image_url %}
+          <figure>
+            <img src="{{ event.cover_image_url }}" alt="{{ event.name }}" class="w-full object-cover h-40" />
+          </figure>
+        {% endif %}
+        <div class="card-body">
+          <div class="flex flex-wrap gap-2 mb-1">
+            <span class="badge badge-primary">{{ event.type_label }}</span>
+            {% if event.is_upcoming %}
+              <span class="badge badge-success">Upcoming</span>
+            {% else %}
+              <span class="badge badge-ghost">Past</span>
+            {% endif %}
+          </div>
+          <h2 class="card-title">{{ event.name }}</h2>
+          {% if event.short_description %}
+            <p class="text-base-content/70 text-sm line-clamp-2">{{ event.short_description }}</p>
+          {% endif %}
+          <p class="text-xs text-base-content/50 mt-1">
+            {{ event.start_datetime.strftime('%B %-d, %Y') }}
+          </p>
+          <div class="card-actions justify-end mt-3">
+            <a href="{{ url_for('public.event_detail', slug=event.slug) }}" class="btn btn-sm btn-outline">
+              Details
+            </a>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+{% else %}
+  <div class="hero min-h-32 bg-base-200 rounded-box">
+    <div class="hero-content text-center">
+      <p class="text-base-content/60">No events scheduled yet. Check back soon!</p>
+    </div>
+  </div>
+{% endif %}
 {% endblock %}

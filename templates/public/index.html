@@ -3,13 +3,58 @@
 {% block title %}{{ site_name }}{% endblock %}
 
 {% block content %}
-<div class="hero min-h-64 bg-base-200 rounded-box">
-  <div class="hero-content text-center">
-    <div>
-      <h1 class="text-5xl font-bold">Welcome to {{ site_name }}</h1>
-      <p class="py-6 text-base-content/70">{{ site_tagline }}</p>
-      <a href="{{ url_for('public.events') }}" class="btn btn-primary">View Events</a>
+{% if upcoming_event %}
+  <div class="hero min-h-64 bg-base-200 rounded-box mb-8">
+    <div class="hero-content text-center">
+      <div>
+        <h1 class="text-5xl font-bold">Welcome to {{ site_name }}</h1>
+        <p class="py-4 text-base-content/70">{{ site_tagline }}</p>
+      </div>
     </div>
   </div>
-</div>
+
+  <h2 class="text-2xl font-bold mb-4">Next Event</h2>
+  <div class="card bg-base-200 shadow-xl">
+    {% if upcoming_event.cover_image_url %}
+      <figure>
+        <img src="{{ upcoming_event.cover_image_url }}" alt="{{ upcoming_event.name }}" class="w-full object-cover max-h-64" />
+      </figure>
+    {% endif %}
+    <div class="card-body">
+      <div class="flex flex-wrap gap-2 mb-1">
+        <span class="badge badge-primary">{{ upcoming_event.type_label }}</span>
+        <span class="badge badge-outline">Upcoming</span>
+      </div>
+      <h2 class="card-title text-2xl">{{ upcoming_event.name }}</h2>
+      {% if upcoming_event.short_description %}
+        <p class="text-base-content/80">{{ upcoming_event.short_description }}</p>
+      {% endif %}
+      <div class="text-sm text-base-content/60 space-y-1 mt-2">
+        <p>
+          <span class="font-semibold">When:</span>
+          {{ upcoming_event.start_datetime.strftime('%B %-d, %Y') }}
+          &ndash;
+          {{ upcoming_event.end_datetime.strftime('%B %-d, %Y') }}
+        </p>
+        <p><span class="font-semibold">Where:</span> {{ upcoming_event.location }}</p>
+      </div>
+      <div class="card-actions justify-end mt-4">
+        <a href="{{ url_for('public.event_detail', slug=upcoming_event.slug) }}" class="btn btn-primary">
+          View Details
+        </a>
+      </div>
+    </div>
+  </div>
+
+{% else %}
+  <div class="hero min-h-64 bg-base-200 rounded-box">
+    <div class="hero-content text-center">
+      <div>
+        <h1 class="text-5xl font-bold">Welcome to {{ site_name }}</h1>
+        <p class="py-6 text-base-content/70">{{ site_tagline }}</p>
+        <a href="{{ url_for('public.events') }}" class="btn btn-primary">View Events</a>
+      </div>
+    </div>
+  </div>
+{% endif %}
 {% endblock %}
