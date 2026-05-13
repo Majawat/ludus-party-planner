@@ -67,10 +67,12 @@ def create_app(test_config=None):
         try:
             theme = SiteSettings.get("ui_theme", "dark")
             site_name = SiteSettings.get("site_name", "Ludus Party Planner")
+            site_tagline = SiteSettings.get("site_tagline", "Board Games & LAN Parties")
         except Exception:
             theme = "dark"
             site_name = "Ludus Party Planner"
-        return {"ui_theme": theme, "site_name": site_name}
+            site_tagline = "Board Games & LAN Parties"
+        return {"ui_theme": theme, "site_name": site_name, "site_tagline": site_tagline}
 
     @app.route("/ping")
     def ping():
