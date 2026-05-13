@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Register for {{ event.name }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+
+  <div class="mb-6">
+    <a href="{{ url_for('public.event_detail', slug=event.slug) }}" class="btn btn-ghost btn-sm">&larr; {{ event.name }}</a>
+  </div>
+
+  <h1 class="text-3xl font-bold mb-2">Register for {{ event.name }}</h1>
+  <p class="text-base-content/70 mb-6">
+    {{ event.start_datetime.strftime('%B %-d') }}–{{ event.end_datetime.strftime('%-d, %Y') }} &middot; {{ event.location }}
+  </p>
+
+  <div class="card bg-base-200 shadow">
+    <div class="card-body">
+      <form method="POST">
+        {{ form.hidden_tag() }}
+
+        <div class="form-control mb-6">
+          {{ form.ticket_type_id.label(class="label") }}
+          {{ form.ticket_type_id(class="select select-bordered w-full") }}
+          {% if form.ticket_type_id.errors %}
+            {% for error in form.ticket_type_id.errors %}
+              <p class="text-error text-sm mt-1">{{ error }}</p>
+            {% endfor %}
+          {% endif %}
+        </div>
+
+        {% if available_tickets %}
+          <div class="mb-6 space-y-2">
+            {% for ticket in available_tickets %}
+              <div class="rounded-box border border-base-300 p-3 text-sm">
+                <div class="flex justify-between items-start">
+                  <span class="font-semibold">{{ ticket.name }}</span>
+                  <span class="badge badge-ghost">
+                    {% if ticket.price == 0 %}Free{% else %}${{ "%.2f"|format(ticket.price) }}{% endif %}
+                  </span>
+                </div>
+                {% if ticket.description %}
+                  <p class="text-base-content/70 mt-1">{{ ticket.description }}</p>
+                {% endif %}
+                <p class="text-base-content/50 mt-1 text-xs">
+                  {{ ticket.quantity_total - ticket.quantity_sold }} of {{ ticket.quantity_total }} spots remaining
+                </p>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {% if has_lodging_tickets %}
+          <div class="divider">Emergency Contact</div>
+          <p class="text-sm text-base-content/70 mb-4">Required for overnight ticket holders.</p>
+
+          <div class="form-control mb-4">
+            {{ form.emergency_contact_name.label(class="label") }}
+            {{ form.emergency_contact_name(class="input input-bordered w-full", placeholder="Full name") }}
+            {% if form.emergency_contact_name.errors %}
+              {% for error in form.emergency_contact_name.errors %}
+                <p class="text-error text-sm mt-1">{{ error }}</p>
+              {% endfor %}
+            {% endif %}
+          </div>
+
+          <div class="form-control mb-6">
+            {{ form.emergency_contact_phone.label(class="label") }}
+            {{ form.emergency_contact_phone(class="input input-bordered w-full", placeholder="Phone number") }}
+            {% if form.emergency_contact_phone.errors %}
+              {% for error in form.emergency_contact_phone.errors %}
+                <p class="text-error text-sm mt-1">{{ error }}</p>
+              {% endfor %}
+            {% endif %}
+          </div>
+        {% endif %}
+
+        <div class="card-actions justify-end">
+          <a href="{{ url_for('public.event_detail', slug=event.slug) }}" class="btn btn-ghost">Cancel</a>
+          {{ form.submit(class="btn btn-primary") }}
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

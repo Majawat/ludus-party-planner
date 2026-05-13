@@ -1,9 +1,10 @@
 import json
 import pytest
 from datetime import datetime
+from uuid import uuid4
 
 from app import create_app
-from models import User, Event, TicketType, db as _db, utcnow
+from models import User, Event, Registration, TicketType, db as _db, utcnow
 
 
 @pytest.fixture()
@@ -145,3 +146,18 @@ def ticket_type(app, published_event):
     _db.session.add(tt)
     _db.session.commit()
     return tt
+
+
+@pytest.fixture()
+def registration(app, regular_user, published_event, ticket_type):
+    reg = Registration(
+        user_id=regular_user.id,
+        event_id=published_event.id,
+        ticket_type_id=ticket_type.id,
+        status="confirmed",
+        payment_status="unpaid",
+        checkin_code=str(uuid4()),
+    )
+    _db.session.add(reg)
+    _db.session.commit()
+    return reg

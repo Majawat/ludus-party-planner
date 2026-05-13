@@ -1,7 +1,8 @@
 from flask import Blueprint, render_template, abort
+from flask_login import current_user
 from sqlalchemy import select
 
-from models import db, Event, SiteSettings, utcnow
+from models import db, Event, Registration, SiteSettings, utcnow
 
 public_bp = Blueprint("public", __name__)
 
@@ -37,4 +38,28 @@ def event_detail(slug):
     ).scalar_one_or_none()
     if event is None:
         abort(404)
-    return render_template("public/event_detail.html", event=event)
+
+    attendees = Registration.query.filter(
+        Registration.event_id == event.id,
+        Registration.status != "cancelled",
+    ).all()
+
+    user_registration = None
+    if current_user.is_authenticated:
+        user_registration = Registration.query.filter_by(
+            user_id=current_user.id, event_id=event.id
+        ).first()
+
+    registration_is_open = (
+        event.registration_open
+        and (event.registration_closes_at is None or event.registration_closes_at > utcnow())
+        and event.is_upcoming
+    )
+
+    return render_template(
+        "public/event_detail.html",
+        event=event,
+        attendees=attendees,
+        user_registration=user_registration,
+        registration_is_open=registration_is_open,
+    )
