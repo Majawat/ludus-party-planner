@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Registrations — {{ event.name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="text-sm breadcrumbs mb-4">
+  <ul>
+    <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+    <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+    <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+    <li>Registrations</li>
+  </ul>
+</div>
+
+<div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
+  <h1 class="text-2xl font-bold">Registrations</h1>
+  <a href="{{ url_for('admin.registrations_export', id=event.id) }}" class="btn btn-outline btn-sm">
+    Export CSV
+  </a>
+</div>
+
+<!-- Filter tabs -->
+<div class="tabs tabs-boxed mb-4 flex-wrap">
+  {% set tabs = [
+    ('all',       'All',        counts.all),
+    ('unpaid',    'Unpaid',     counts.unpaid),
+    ('paid',      'Paid',       counts.paid),
+    ('comped',    'Comped',     counts.comped),
+    ('checked-in','Checked In', counts['checked-in']),
+    ('cancelled', 'Cancelled',  counts.cancelled),
+  ] %}
+  {% for val, label, count in tabs %}
+    <a href="{{ url_for('admin.registrations_list', id=event.id, filter=val) }}"
+       class="tab{% if filter_val == val %} tab-active{% endif %}">
+      {{ label }}
+      <span class="badge badge-sm ml-1">{{ count }}</span>
+    </a>
+  {% endfor %}
+</div>
+
+<!-- HTMX search -->
+<div class="mb-4">
+  <input
+    type="search"
+    name="q"
+    value="{{ q }}"
+    placeholder="Search by name or email…"
+    class="input input-bordered w-full max-w-sm"
+    hx-get="{{ url_for('admin.registrations_list', id=event.id) }}"
+    hx-trigger="keyup changed delay:300ms, search"
+    hx-target="#reg-rows"
+    hx-include="[name='filter']"
+  />
+  <input type="hidden" name="filter" value="{{ filter_val }}" />
+</div>
+
+<!-- Registrations table -->
+<div class="overflow-x-auto">
+  <table class="table table-zebra w-full">
+    <thead>
+      <tr>
+        <th>Attendee</th>
+        <th>Ticket Type</th>
+        <th>Status</th>
+        <th>Payment</th>
+        <th>Checked In</th>
+        <th>Registered</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="reg-rows">
+      {% include "admin/events/registrations/_rows.html" %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

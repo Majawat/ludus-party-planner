@@ -26,6 +26,9 @@
     </div>
     <div class="navbar-end gap-2">
       {% if current_user.is_authenticated %}
+        {% if current_user.is_admin %}
+          <a href="{{ url_for('admin.dashboard') }}" class="btn btn-accent btn-sm">Admin</a>
+        {% endif %}
         <a href="{{ url_for('account.dashboard') }}" class="btn btn-ghost btn-sm">Dashboard</a>
         <a href="{{ url_for('auth.logout') }}" class="btn btn-ghost btn-sm">Logout</a>
       {% else %}

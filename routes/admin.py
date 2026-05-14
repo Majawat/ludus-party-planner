@@ -1,11 +1,13 @@
+import csv
+import io
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
-from forms import AdminSettingsForm, EventForm, TicketTypeForm
-from models import Event, SiteSettings, TicketType, db, slugify, unique_slug
+from forms import AdminMarkPaidForm, AdminNotesForm, AdminSettingsForm, EventForm, TicketTypeForm
+from models import Event, Registration, SiteSettings, TicketType, User, db, slugify, unique_slug
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -294,3 +296,235 @@ def ticket_edit(id, tid):
         form=form, event=event, ticket=ticket,
         available_days=available_days, selected_days=current_selected,
     )
+
+
+# ---------------------------------------------------------------------------
+# Registrations
+# ---------------------------------------------------------------------------
+
+def _get_event_or_404(event_id):
+    event = db.session.get(Event, event_id)
+    if event is None:
+        abort(404)
+    return event
+
+
+def _get_registration_or_404(event, rid):
+    reg = db.session.get(Registration, rid)
+    if reg is None or reg.event_id != event.id:
+        abort(404)
+    return reg
+
+
+@admin_bp.route("/events/<int:id>/registrations")
+def registrations_list(id):
+    event = _get_event_or_404(id)
+
+    filter_val = request.args.get("filter", "all")
+    q = request.args.get("q", "").strip()
+
+    query = (
+        db.select(Registration)
+        .where(Registration.event_id == event.id)
+        .join(Registration.user)
+        .order_by(Registration.created_at.desc())
+    )
+
+    if filter_val == "unpaid":
+        query = query.where(Registration.payment_status == "unpaid", Registration.status != "cancelled")
+    elif filter_val == "paid":
+        query = query.where(Registration.payment_status == "paid")
+    elif filter_val == "comped":
+        query = query.where(Registration.payment_status == "comped")
+    elif filter_val == "checked-in":
+        query = query.where(Registration.checked_in_at.isnot(None))
+    elif filter_val == "cancelled":
+        query = query.where(Registration.status == "cancelled")
+    else:
+        filter_val = "all"
+
+    if q:
+        like = f"%{q}%"
+        query = query.where(
+            db.or_(User.name.ilike(like), User.email.ilike(like))
+        )
+
+    registrations = db.session.execute(query).scalars().all()
+
+    if request.headers.get("HX-Request"):
+        return render_template(
+            "admin/events/registrations/_rows.html",
+            registrations=registrations,
+            event=event,
+        )
+
+    counts = {
+        "all": db.session.execute(
+            db.select(db.func.count(Registration.id)).where(Registration.event_id == event.id)
+        ).scalar(),
+        "unpaid": db.session.execute(
+            db.select(db.func.count(Registration.id)).where(
+                Registration.event_id == event.id,
+                Registration.payment_status == "unpaid",
+                Registration.status != "cancelled",
+            )
+        ).scalar(),
+        "paid": db.session.execute(
+            db.select(db.func.count(Registration.id)).where(
+                Registration.event_id == event.id, Registration.payment_status == "paid"
+            )
+        ).scalar(),
+        "comped": db.session.execute(
+            db.select(db.func.count(Registration.id)).where(
+                Registration.event_id == event.id, Registration.payment_status == "comped"
+            )
+        ).scalar(),
+        "checked-in": db.session.execute(
+            db.select(db.func.count(Registration.id)).where(
+                Registration.event_id == event.id, Registration.checked_in_at.isnot(None)
+            )
+        ).scalar(),
+        "cancelled": db.session.execute(
+            db.select(db.func.count(Registration.id)).where(
+                Registration.event_id == event.id, Registration.status == "cancelled"
+            )
+        ).scalar(),
+    }
+
+    return render_template(
+        "admin/events/registrations/list.html",
+        event=event,
+        registrations=registrations,
+        filter_val=filter_val,
+        q=q,
+        counts=counts,
+    )
+
+
+@admin_bp.route("/events/<int:id>/registrations/export.csv")
+def registrations_export(id):
+    event = _get_event_or_404(id)
+    registrations = db.session.execute(
+        db.select(Registration)
+        .where(Registration.event_id == event.id)
+        .join(Registration.user)
+        .order_by(User.name)
+    ).scalars().all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Name", "Email", "Ticket Type", "Status", "Payment Status",
+        "Payment Method", "Paid At", "Checked In At", "Needs Loaner",
+        "Emergency Contact Name", "Emergency Contact Phone", "Registered At",
+    ])
+    for reg in registrations:
+        writer.writerow([
+            reg.user.name,
+            reg.user.email,
+            reg.ticket_type.name,
+            reg.status,
+            reg.payment_status,
+            reg.payment_method or "",
+            reg.paid_at.strftime("%Y-%m-%d %H:%M") if reg.paid_at else "",
+            reg.checked_in_at.strftime("%Y-%m-%d %H:%M") if reg.checked_in_at else "",
+            "Yes" if reg.needs_loaner else "No",
+            reg.emergency_contact_name or "",
+            reg.emergency_contact_phone or "",
+            reg.created_at.strftime("%Y-%m-%d %H:%M"),
+        ])
+
+    filename = f"{event.slug}-registrations.csv"
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@admin_bp.route("/events/<int:id>/registrations/<int:rid>")
+def registration_detail(id, rid):
+    event = _get_event_or_404(id)
+    reg = _get_registration_or_404(event, rid)
+    paid_form = AdminMarkPaidForm(prefix="paid")
+    notes_form = AdminNotesForm(prefix="notes", obj=reg)
+    return render_template(
+        "admin/events/registrations/detail.html",
+        event=event,
+        reg=reg,
+        paid_form=paid_form,
+        notes_form=notes_form,
+    )
+
+
+@admin_bp.route("/events/<int:id>/registrations/<int:rid>/mark-paid", methods=["POST"])
+def registration_mark_paid(id, rid):
+    event = _get_event_or_404(id)
+    reg = _get_registration_or_404(event, rid)
+    form = AdminMarkPaidForm(prefix="paid")
+    if form.validate_on_submit():
+        reg.payment_status = "paid"
+        reg.payment_method = form.payment_method.data
+        reg.paid_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        if reg.status == "pending":
+            reg.status = "confirmed"
+        db.session.commit()
+        flash("Marked as paid.", "success")
+    return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
+
+
+@admin_bp.route("/events/<int:id>/registrations/<int:rid>/mark-comped", methods=["POST"])
+def registration_mark_comped(id, rid):
+    event = _get_event_or_404(id)
+    reg = _get_registration_or_404(event, rid)
+    reg.payment_status = "comped"
+    reg.payment_method = None
+    reg.paid_at = None
+    if reg.status == "pending":
+        reg.status = "confirmed"
+    db.session.commit()
+    flash("Marked as comped.", "success")
+    return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
+
+
+@admin_bp.route("/events/<int:id>/registrations/<int:rid>/check-in", methods=["POST"])
+def registration_checkin(id, rid):
+    event = _get_event_or_404(id)
+    reg = _get_registration_or_404(event, rid)
+    reg.checked_in_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.session.commit()
+    flash("Checked in.", "success")
+    return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
+
+
+@admin_bp.route("/events/<int:id>/registrations/<int:rid>/undo-checkin", methods=["POST"])
+def registration_undo_checkin(id, rid):
+    event = _get_event_or_404(id)
+    reg = _get_registration_or_404(event, rid)
+    reg.checked_in_at = None
+    db.session.commit()
+    flash("Check-in undone.", "success")
+    return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
+
+
+@admin_bp.route("/events/<int:id>/registrations/<int:rid>/cancel", methods=["POST"])
+def registration_cancel(id, rid):
+    event = _get_event_or_404(id)
+    reg = _get_registration_or_404(event, rid)
+    reg.status = "cancelled"
+    reg.seat_id = None
+    db.session.commit()
+    flash("Registration cancelled.", "success")
+    return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
+
+
+@admin_bp.route("/events/<int:id>/registrations/<int:rid>/notes", methods=["POST"])
+def registration_notes(id, rid):
+    event = _get_event_or_404(id)
+    reg = _get_registration_or_404(event, rid)
+    form = AdminNotesForm(prefix="notes")
+    if form.validate_on_submit():
+        reg.admin_notes = form.admin_notes.data or None
+        db.session.commit()
+        flash("Notes saved.", "success")
+    return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))

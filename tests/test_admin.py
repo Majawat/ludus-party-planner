@@ -389,3 +389,137 @@ def test_event_delete_cascades_to_ticket_types(app, published_event, ticket_type
     db.session.delete(published_event)
     db.session.commit()
     assert TicketType.query.filter_by(event_id=event_id).count() == 0
+
+
+# ---------------------------------------------------------------------------
+# Phase 6: Admin registration management
+# ---------------------------------------------------------------------------
+
+from models import Registration
+
+
+def test_registrations_list_returns_200_for_admin(client, admin_user, published_event, ticket_type, registration):
+    _login(client, "admin@example.com", "adminpass123")
+    response = client.get(f"/admin/events/{published_event.id}/registrations")
+    assert response.status_code == 200
+    assert b"Regular" in response.data
+
+
+def test_registrations_list_returns_403_for_non_admin(client, regular_user, published_event, ticket_type, registration):
+    _login(client, "user@example.com", "userpass123")
+    response = client.get(f"/admin/events/{published_event.id}/registrations")
+    assert response.status_code == 403
+
+
+def test_registrations_list_htmx_returns_partial(client, admin_user, published_event, ticket_type, registration):
+    _login(client, "admin@example.com", "adminpass123")
+    response = client.get(
+        f"/admin/events/{published_event.id}/registrations",
+        headers={"HX-Request": "true"},
+    )
+    assert response.status_code == 200
+    assert b"<html" not in response.data
+
+
+def test_registration_detail_returns_200(client, admin_user, published_event, ticket_type, registration):
+    _login(client, "admin@example.com", "adminpass123")
+    response = client.get(f"/admin/events/{published_event.id}/registrations/{registration.id}")
+    assert response.status_code == 200
+    assert b"Regular" in response.data
+
+
+def test_mark_paid_updates_payment_status(client, admin_user, published_event, ticket_type, registration):
+    _login(client, "admin@example.com", "adminpass123")
+    response = client.post(
+        f"/admin/events/{published_event.id}/registrations/{registration.id}/mark-paid",
+        data={"paid-payment_method": "venmo", "paid-submit": "Mark Paid"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db.session.refresh(registration)
+    assert registration.payment_status == "paid"
+    assert registration.payment_method == "venmo"
+    assert registration.paid_at is not None
+
+
+def test_mark_paid_confirms_pending_registration(client, admin_user, published_event, ticket_type, registration):
+    registration.status = "pending"
+    db.session.commit()
+    _login(client, "admin@example.com", "adminpass123")
+    client.post(
+        f"/admin/events/{published_event.id}/registrations/{registration.id}/mark-paid",
+        data={"paid-payment_method": "cash", "paid-submit": "Mark Paid"},
+    )
+    db.session.refresh(registration)
+    assert registration.status == "confirmed"
+
+
+def test_mark_comped_sets_payment_status(client, admin_user, published_event, ticket_type, registration):
+    _login(client, "admin@example.com", "adminpass123")
+    response = client.post(
+        f"/admin/events/{published_event.id}/registrations/{registration.id}/mark-comped",
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db.session.refresh(registration)
+    assert registration.payment_status == "comped"
+
+
+def test_checkin_sets_checked_in_at(client, admin_user, published_event, ticket_type, registration):
+    assert registration.checked_in_at is None
+    _login(client, "admin@example.com", "adminpass123")
+    response = client.post(
+        f"/admin/events/{published_event.id}/registrations/{registration.id}/check-in",
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db.session.refresh(registration)
+    assert registration.checked_in_at is not None
+
+
+def test_undo_checkin_clears_checked_in_at(client, admin_user, published_event, ticket_type, registration):
+    from datetime import datetime
+    registration.checked_in_at = datetime(2026, 8, 7, 20, 0, 0)
+    db.session.commit()
+
+    _login(client, "admin@example.com", "adminpass123")
+    response = client.post(
+        f"/admin/events/{published_event.id}/registrations/{registration.id}/undo-checkin",
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db.session.refresh(registration)
+    assert registration.checked_in_at is None
+
+
+def test_cancel_sets_status_cancelled(client, admin_user, published_event, ticket_type, registration):
+    _login(client, "admin@example.com", "adminpass123")
+    response = client.post(
+        f"/admin/events/{published_event.id}/registrations/{registration.id}/cancel",
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db.session.refresh(registration)
+    assert registration.status == "cancelled"
+    assert registration.seat_id is None
+
+
+def test_admin_notes_saves(client, admin_user, published_event, ticket_type, registration):
+    _login(client, "admin@example.com", "adminpass123")
+    response = client.post(
+        f"/admin/events/{published_event.id}/registrations/{registration.id}/notes",
+        data={"notes-admin_notes": "Bring a power strip.", "notes-submit": "Save Notes"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    db.session.refresh(registration)
+    assert registration.admin_notes == "Bring a power strip."
+
+
+def test_csv_export_returns_csv(client, admin_user, published_event, ticket_type, registration):
+    _login(client, "admin@example.com", "adminpass123")
+    response = client.get(f"/admin/events/{published_event.id}/registrations/export.csv")
+    assert response.status_code == 200
+    assert "text/csv" in response.content_type
+    assert b"Name,Email" in response.data
+    assert b"Regular" in response.data

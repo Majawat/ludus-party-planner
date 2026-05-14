@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}{{ reg.user.name }} — Registrations — {{ event.name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="text-sm breadcrumbs mb-4">
+  <ul>
+    <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+    <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+    <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+    <li><a href="{{ url_for('admin.registrations_list', id=event.id) }}">Registrations</a></li>
+    <li>{{ reg.user.name }}</li>
+  </ul>
+</div>
+
+<h1 class="text-2xl font-bold mb-6">{{ reg.user.name }}</h1>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+  <!-- Attendee Info -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title text-base">Attendee</h2>
+      <dl class="space-y-1 text-sm">
+        <div class="flex gap-2">
+          <dt class="opacity-60 w-32">Name</dt>
+          <dd>{{ reg.user.name }}</dd>
+        </div>
+        <div class="flex gap-2">
+          <dt class="opacity-60 w-32">Email</dt>
+          <dd>{{ reg.user.email }}</dd>
+        </div>
+        <div class="flex gap-2">
+          <dt class="opacity-60 w-32">Verified</dt>
+          <dd>
+            {% if reg.user.email_verified_at %}
+              <span class="badge badge-success badge-sm">Yes</span>
+            {% else %}
+              <span class="badge badge-warning badge-sm">No</span>
+            {% endif %}
+          </dd>
+        </div>
+        <div class="flex gap-2">
+          <dt class="opacity-60 w-32">Member Since</dt>
+          <dd>{{ reg.user.created_at.strftime('%Y-%m-%d') }}</dd>
+        </div>
+      </dl>
+    </div>
+  </div>
+
+  <!-- Registration Info -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title text-base">Registration</h2>
+      <dl class="space-y-1 text-sm">
+        <div class="flex gap-2">
+          <dt class="opacity-60 w-32">Ticket</dt>
+          <dd>{{ reg.ticket_type.name }}</dd>
+        </div>
+        <div class="flex gap-2">
+          <dt class="opacity-60 w-32">Status</dt>
+          <dd>
+            {% if reg.status == 'confirmed' %}
+              <span class="badge badge-success badge-sm">Confirmed</span>
+            {% elif reg.status == 'cancelled' %}
+              <span class="badge badge-error badge-sm">Cancelled</span>
+            {% else %}
+              <span class="badge badge-warning badge-sm">Pending</span>
+            {% endif %}
+          </dd>
+        </div>
+        <div class="flex gap-2">
+          <dt class="opacity-60 w-32">Registered</dt>
+          <dd>{{ reg.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+        </div>
+        <div class="flex gap-2">
+          <dt class="opacity-60 w-32">Check-in Code</dt>
+          <dd class="font-mono text-xs break-all">{{ reg.checkin_code }}</dd>
+        </div>
+        {% if reg.needs_loaner %}
+          <div class="flex gap-2 mt-1">
+            <dt class="opacity-60 w-32"></dt>
+            <dd><span class="badge badge-warning badge-sm">Needs Loaner</span></dd>
+          </div>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+
+  <!-- Payment -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title text-base">Payment</h2>
+      <dl class="space-y-1 text-sm mb-4">
+        <div class="flex gap-2">
+          <dt class="opacity-60 w-32">Status</dt>
+          <dd>
+            {% if reg.payment_status == 'paid' %}
+              <span class="badge badge-success badge-sm">Paid</span>
+            {% elif reg.payment_status == 'comped' %}
+              <span class="badge badge-info badge-sm">Comped</span>
+            {% else %}
+              <span class="badge badge-warning badge-sm">Unpaid</span>
+            {% endif %}
+          </dd>
+        </div>
+        {% if reg.payment_method %}
+          <div class="flex gap-2">
+            <dt class="opacity-60 w-32">Method</dt>
+            <dd class="capitalize">{{ reg.payment_method }}</dd>
+          </div>
+        {% endif %}
+        {% if reg.paid_at %}
+          <div class="flex gap-2">
+            <dt class="opacity-60 w-32">Paid At</dt>
+            <dd>{{ reg.paid_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+          </div>
+        {% endif %}
+      </dl>
+
+      {% if reg.status != 'cancelled' %}
+        <div class="flex flex-wrap gap-2">
+          {% if reg.payment_status != 'paid' %}
+            <form method="POST" action="{{ url_for('admin.registration_mark_paid', id=event.id, rid=reg.id) }}"
+                  class="flex gap-2 items-center flex-wrap">
+              {{ paid_form.hidden_tag() }}
+              {{ paid_form.payment_method(class="select select-bordered select-sm") }}
+              {{ paid_form.submit(class="btn btn-success btn-sm") }}
+            </form>
+          {% endif %}
+          {% if reg.payment_status != 'comped' %}
+            <form method="POST" action="{{ url_for('admin.registration_mark_comped', id=event.id, rid=reg.id) }}">
+              {{ paid_form.hidden_tag() }}
+              <button type="submit" class="btn btn-info btn-sm">Mark Comped</button>
+            </form>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Check-in -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title text-base">Check-in</h2>
+      {% if reg.checked_in_at %}
+        <p class="text-sm text-success mb-3">
+          Checked in at {{ reg.checked_in_at.strftime('%Y-%m-%d %H:%M') }}
+        </p>
+        {% if reg.status != 'cancelled' %}
+          <form method="POST" action="{{ url_for('admin.registration_undo_checkin', id=event.id, rid=reg.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="btn btn-warning btn-sm">Undo Check-in</button>
+          </form>
+        {% endif %}
+      {% else %}
+        <p class="text-sm opacity-60 mb-3">Not checked in.</p>
+        {% if reg.status != 'cancelled' %}
+          <form method="POST" action="{{ url_for('admin.registration_checkin', id=event.id, rid=reg.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="btn btn-primary btn-sm">Check In</button>
+          </form>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if reg.emergency_contact_name or reg.emergency_contact_phone %}
+  <!-- Emergency Contact -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title text-base">Emergency Contact</h2>
+      <dl class="space-y-1 text-sm">
+        {% if reg.emergency_contact_name %}
+          <div class="flex gap-2">
+            <dt class="opacity-60 w-32">Name</dt>
+            <dd>{{ reg.emergency_contact_name }}</dd>
+          </div>
+        {% endif %}
+        {% if reg.emergency_contact_phone %}
+          <div class="flex gap-2">
+            <dt class="opacity-60 w-32">Phone</dt>
+            <dd>{{ reg.emergency_contact_phone }}</dd>
+          </div>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Admin Notes -->
+  <div class="card bg-base-200 md:col-span-2">
+    <div class="card-body">
+      <h2 class="card-title text-base">Admin Notes</h2>
+      <form method="POST" action="{{ url_for('admin.registration_notes', id=event.id, rid=reg.id) }}">
+        {{ notes_form.hidden_tag() }}
+        {{ notes_form.admin_notes(
+             class="textarea textarea-bordered w-full",
+             rows=4,
+             placeholder="Internal notes — never shown to the attendee"
+           ) }}
+        <div class="mt-2">
+          {{ notes_form.submit(class="btn btn-sm") }}
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<!-- Cancel Registration -->
+{% if reg.status != 'cancelled' %}
+  <div class="mt-8 pt-6 border-t border-base-300">
+    <h2 class="text-lg font-semibold text-error mb-2">Danger Zone</h2>
+    <form method="POST" action="{{ url_for('admin.registration_cancel', id=event.id, rid=reg.id) }}"
+          onsubmit="return confirm('Cancel this registration? This will free any assigned seat.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <button type="submit" class="btn btn-error btn-sm">Cancel Registration</button>
+    </form>
+  </div>
+{% endif %}
+{% endblock %}
