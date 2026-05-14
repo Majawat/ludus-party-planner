@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% set admin = true %}
+
+{% block title %}Seats — {{ event.name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+
+  <div class="breadcrumbs text-sm mb-6">
+    <ul>
+      <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+      <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+      <li>Seats</li>
+    </ul>
+  </div>
+
+  <h1 class="text-2xl font-bold mb-6">Seats — {{ event.name }}</h1>
+
+  <!-- Seat list -->
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title text-base mb-3">All Seats ({{ seats | length }})</h2>
+      {% if seats %}
+        <div class="overflow-x-auto">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>Order</th>
+                <th>Claimed By</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for seat in seats %}
+                <tr>
+                  <td class="font-medium">{{ seat.label }}</td>
+                  <td class="text-sm opacity-60">{{ seat.display_order }}</td>
+                  <td>
+                    {% if seat.id in taken_map %}
+                      <a href="{{ url_for('admin.registration_detail', id=event.id, rid=taken_map[seat.id].id) }}"
+                         class="link link-hover text-sm">{{ taken_map[seat.id].user.name }}</a>
+                    {% else %}
+                      <span class="badge badge-success badge-sm">Available</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-right">
+                    {% if seat.id not in taken_map %}
+                      <form method="POST" action="{{ url_for('admin.seat_delete', id=event.id, sid=seat.id) }}"
+                            onsubmit="return confirm('Delete seat \'{{ seat.label }}\'?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <button type="submit" class="btn btn-ghost btn-xs text-error">Delete</button>
+                      </form>
+                    {% else %}
+                      <span class="text-xs opacity-40">Claimed</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-sm opacity-60">No seats yet. Add some below.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+    <!-- Single seat add -->
+    <div class="card bg-base-200 shadow">
+      <div class="card-body">
+        <h2 class="card-title text-base">Add Single Seat</h2>
+        <form method="POST" action="{{ url_for('admin.seat_add', id=event.id) }}">
+          {{ seat_form.hidden_tag() }}
+          <div class="form-control mb-3">
+            {{ seat_form.label.label(class="label label-text") }}
+            {{ seat_form.label(class="input input-bordered w-full", placeholder="e.g. Table A – Seat 1") }}
+          </div>
+          <div class="form-control mb-4">
+            {{ seat_form.display_order.label(class="label label-text") }}
+            {{ seat_form.display_order(class="input input-bordered w-full") }}
+          </div>
+          {{ seat_form.submit(class="btn btn-primary btn-sm") }}
+        </form>
+      </div>
+    </div>
+
+    <!-- Bulk seat add -->
+    <div class="card bg-base-200 shadow">
+      <div class="card-body">
+        <h2 class="card-title text-base">Bulk Add Seats</h2>
+        <p class="text-sm opacity-60 mb-3">
+          Creates seats labeled "{prefix} {start}" through "{prefix} {start + count − 1}".
+        </p>
+        <form method="POST" action="{{ url_for('admin.seat_bulk_add', id=event.id) }}">
+          {{ bulk_form.hidden_tag() }}
+          <div class="form-control mb-3">
+            {{ bulk_form.prefix.label(class="label label-text") }}
+            {{ bulk_form.prefix(class="input input-bordered w-full", placeholder="Seat") }}
+          </div>
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            <div class="form-control">
+              {{ bulk_form.count.label(class="label label-text") }}
+              {{ bulk_form.count(class="input input-bordered w-full", placeholder="20") }}
+            </div>
+            <div class="form-control">
+              {{ bulk_form.start_number.label(class="label label-text") }}
+              {{ bulk_form.start_number(class="input input-bordered w-full", placeholder="1") }}
+            </div>
+          </div>
+          {{ bulk_form.submit(class="btn btn-primary btn-sm") }}
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Choose Your Seat — {{ event.name }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+
+  <div class="mb-6">
+    <a href="{{ url_for('account.my_registration', slug=event.slug) }}" class="btn btn-ghost btn-sm">&larr; My Registration</a>
+  </div>
+
+  <h1 class="text-3xl font-bold mb-2">Choose Your Seat</h1>
+  <p class="text-base-content/70 mb-6">{{ event.name }}</p>
+
+  {% if registration.seat %}
+    <div class="alert alert-info mb-6">
+      <span>Your current seat: <strong>{{ registration.seat.label }}</strong>. Select a different seat below to change it.</span>
+    </div>
+  {% endif %}
+
+  {% if seats %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+      {% for seat in seats %}
+        {% set is_mine = registration.seat_id == seat.id %}
+        {% set is_taken = seat.id in taken_map and not is_mine %}
+        <div class="card shadow border
+          {% if is_mine %}border-primary bg-primary/10
+          {% elif is_taken %}border-base-300 bg-base-200 opacity-60
+          {% else %}border-base-300 bg-base-200 hover:border-primary{% endif %}">
+          <div class="card-body p-3 text-center">
+            <p class="font-semibold text-sm">{{ seat.label }}</p>
+            {% if is_mine %}
+              <p class="text-xs text-primary mb-2">Your seat</p>
+              <form method="POST" action="{{ url_for('account.seat_release', slug=event.slug) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <button type="submit" class="btn btn-outline btn-xs btn-error">Release</button>
+              </form>
+            {% elif is_taken %}
+              <p class="text-xs opacity-50">Claimed</p>
+            {% else %}
+              <form method="POST" action="{{ url_for('account.seat_claim', slug=event.slug) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <input type="hidden" name="seat_id" value="{{ seat.id }}" />
+                <button type="submit" class="btn btn-primary btn-xs">Claim</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card bg-base-200 shadow p-8 text-center">
+      <p class="opacity-60">No seats have been set up for this event yet. Check back later.</p>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -25,6 +25,13 @@
         {% endif %}
       </td>
       <td>
+        {% if reg.needs_loaner %}
+          <span class="badge badge-warning badge-sm">Loaner</span>
+        {% else %}
+          <span class="opacity-30 text-sm">—</span>
+        {% endif %}
+      </td>
+      <td>
         {% if reg.checked_in_at %}
           <span class="text-success text-sm">✓</span>
         {% else %}
@@ -40,6 +47,6 @@
   {% endfor %}
 {% else %}
   <tr>
-    <td colspan="7" class="text-center py-8 opacity-60">No registrations found.</td>
+    <td colspan="8" class="text-center py-8 opacity-60">No registrations found.</td>
   </tr>
 {% endif %}

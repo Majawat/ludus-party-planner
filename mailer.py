@@ -42,6 +42,16 @@ def send_password_reset_email(user, raw_token):
     mail.send(msg)
 
 
+def send_mass_email(recipients, subject, html_body):
+    from app import mail
+    count = 0
+    for user in recipients:
+        msg = Message(subject=subject, recipients=[user.email], html=html_body)
+        mail.send(msg)
+        count += 1
+    return count
+
+
 def send_registration_confirmation_email(registration):
     from app import mail
     my_reg_url = url_for(

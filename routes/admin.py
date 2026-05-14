@@ -6,8 +6,11 @@ from datetime import datetime, timedelta, timezone
 from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
-from forms import AdminMarkPaidForm, AdminNotesForm, AdminSettingsForm, EventForm, TicketTypeForm
-from models import Event, Registration, SiteSettings, TicketType, User, db, slugify, unique_slug
+from forms import (
+    AdminEmailForm, AdminMarkPaidForm, AdminNotesForm, AdminSettingsForm,
+    BulkSeatForm, EventForm, SeatForm, TicketTypeForm,
+)
+from models import Event, Registration, Seat, SiteSettings, TicketType, User, db, slugify, unique_slug
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -29,7 +32,8 @@ def require_admin():
 @admin_bp.route("/")
 def dashboard():
     event_count = db.session.query(Event).count()
-    return render_template("admin/dashboard.html", event_count=event_count)
+    user_count = db.session.query(User).count()
+    return render_template("admin/dashboard.html", event_count=event_count, user_count=user_count)
 
 
 # ---------------------------------------------------------------------------
@@ -528,3 +532,262 @@ def registration_notes(id, rid):
         db.session.commit()
         flash("Notes saved.", "success")
     return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
+
+
+# ---------------------------------------------------------------------------
+# Seats
+# ---------------------------------------------------------------------------
+
+def _seat_is_taken(seat_id, exclude_registration_id=None):
+    q = Registration.query.filter(
+        Registration.seat_id == seat_id,
+        Registration.status != "cancelled",
+    )
+    if exclude_registration_id:
+        q = q.filter(Registration.id != exclude_registration_id)
+    return q.count() > 0
+
+
+@admin_bp.route("/events/<int:id>/seats")
+def seats_list(id):
+    event = _get_event_or_404(id)
+    seats = (
+        db.session.execute(
+            db.select(Seat)
+            .where(Seat.event_id == event.id)
+            .order_by(Seat.display_order, Seat.id)
+        )
+        .scalars()
+        .all()
+    )
+    taken_regs = (
+        db.session.execute(
+            db.select(Registration)
+            .where(
+                Registration.event_id == event.id,
+                Registration.seat_id.isnot(None),
+                Registration.status != "cancelled",
+            )
+        )
+        .scalars()
+        .all()
+    )
+    taken_map = {r.seat_id: r for r in taken_regs}
+    seat_form = SeatForm(prefix="single")
+    bulk_form = BulkSeatForm(prefix="bulk")
+    return render_template(
+        "admin/events/seats.html",
+        event=event,
+        seats=seats,
+        taken_map=taken_map,
+        seat_form=seat_form,
+        bulk_form=bulk_form,
+    )
+
+
+@admin_bp.route("/events/<int:id>/seats/add", methods=["POST"])
+def seat_add(id):
+    event = _get_event_or_404(id)
+    form = SeatForm(prefix="single")
+    if form.validate_on_submit():
+        seat = Seat(
+            event_id=event.id,
+            label=form.label.data.strip(),
+            display_order=form.display_order.data or 0,
+        )
+        db.session.add(seat)
+        db.session.commit()
+        flash(f"Seat '{seat.label}' added.", "success")
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"{error}", "error")
+    return redirect(url_for("admin.seats_list", id=event.id))
+
+
+@admin_bp.route("/events/<int:id>/seats/bulk-add", methods=["POST"])
+def seat_bulk_add(id):
+    event = _get_event_or_404(id)
+    form = BulkSeatForm(prefix="bulk")
+    if form.validate_on_submit():
+        prefix = form.prefix.data.strip()
+        count = form.count.data
+        start = form.start_number.data
+        for i in range(count):
+            db.session.add(Seat(
+                event_id=event.id,
+                label=f"{prefix} {start + i}",
+                display_order=start + i,
+            ))
+        db.session.commit()
+        flash(f"Added {count} seat(s).", "success")
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"{error}", "error")
+    return redirect(url_for("admin.seats_list", id=event.id))
+
+
+@admin_bp.route("/events/<int:id>/seats/<int:sid>/delete", methods=["POST"])
+def seat_delete(id, sid):
+    event = _get_event_or_404(id)
+    seat = db.session.get(Seat, sid)
+    if seat is None or seat.event_id != event.id:
+        abort(404)
+    if _seat_is_taken(seat.id):
+        flash("Cannot delete a seat that is claimed by a registrant.", "error")
+        return redirect(url_for("admin.seats_list", id=event.id))
+    db.session.delete(seat)
+    db.session.commit()
+    flash(f"Seat '{seat.label}' deleted.", "success")
+    return redirect(url_for("admin.seats_list", id=event.id))
+
+
+@admin_bp.route("/events/<int:id>/registrations/<int:rid>/assign-seat", methods=["POST"])
+def registration_assign_seat(id, rid):
+    event = _get_event_or_404(id)
+    reg = _get_registration_or_404(event, rid)
+    seat_id_raw = request.form.get("seat_id", "").strip()
+
+    if seat_id_raw == "" or seat_id_raw == "none":
+        reg.seat_id = None
+        db.session.commit()
+        flash("Seat released.", "success")
+        return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
+
+    try:
+        seat_id = int(seat_id_raw)
+    except ValueError:
+        flash("Invalid seat.", "error")
+        return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
+
+    seat = db.session.get(Seat, seat_id)
+    if seat is None or seat.event_id != event.id:
+        flash("Seat not found.", "error")
+        return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
+
+    if _seat_is_taken(seat.id, exclude_registration_id=reg.id):
+        flash("That seat is already claimed by another registrant.", "error")
+        return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
+
+    reg.seat_id = seat.id
+    db.session.commit()
+    flash(f"Seat '{seat.label}' assigned.", "success")
+    return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
+
+
+# ---------------------------------------------------------------------------
+# Users
+# ---------------------------------------------------------------------------
+
+@admin_bp.route("/users")
+def users_list():
+    q = request.args.get("q", "").strip()
+    query = db.select(User).order_by(User.created_at.desc())
+    if q:
+        like = f"%{q}%"
+        query = query.where(db.or_(User.name.ilike(like), User.email.ilike(like)))
+    users = db.session.execute(query).scalars().all()
+
+    if request.headers.get("HX-Request"):
+        return render_template("admin/users/_rows.html", users=users)
+
+    total = db.session.execute(db.select(db.func.count(User.id))).scalar()
+    return render_template("admin/users/list.html", users=users, q=q, total=total)
+
+
+@admin_bp.route("/users/<int:uid>")
+def user_detail(uid):
+    user = db.session.get(User, uid)
+    if user is None:
+        abort(404)
+    registrations = (
+        Registration.query.filter_by(user_id=user.id)
+        .join(Event)
+        .order_by(Event.start_datetime.desc())
+        .all()
+    )
+    return render_template("admin/users/detail.html", user=user, registrations=registrations)
+
+
+@admin_bp.route("/users/<int:uid>/toggle-admin", methods=["POST"])
+def user_toggle_admin(uid):
+    user = db.session.get(User, uid)
+    if user is None:
+        abort(404)
+    from flask_login import current_user
+    if user.id == current_user.id:
+        flash("You cannot change your own admin status.", "error")
+        return redirect(url_for("admin.user_detail", uid=uid))
+    if user.is_admin:
+        admin_count = db.session.execute(
+            db.select(db.func.count(User.id)).where(User.is_admin == True)
+        ).scalar()
+        if admin_count <= 1:
+            flash("Cannot remove the last admin.", "error")
+            return redirect(url_for("admin.user_detail", uid=uid))
+    user.is_admin = not user.is_admin
+    db.session.commit()
+    action = "granted admin access" if user.is_admin else "had admin access revoked"
+    flash(f"{user.name} {action}.", "success")
+    return redirect(url_for("admin.user_detail", uid=uid))
+
+
+# ---------------------------------------------------------------------------
+# Mass Email
+# ---------------------------------------------------------------------------
+
+@admin_bp.route("/email", methods=["GET", "POST"])
+def email_compose():
+    from mailer import send_mass_email
+    events = db.session.execute(
+        db.select(Event).order_by(Event.start_datetime.desc())
+    ).scalars().all()
+
+    form = AdminEmailForm()
+    form.event_id.choices = [(0, "— No event / all registered users —")] + [
+        (e.id, e.name) for e in events
+    ]
+
+    if form.validate_on_submit():
+        event_id = form.event_id.data or 0
+        recipient_filter = form.recipient_filter.data
+
+        if event_id == 0:
+            users = db.session.execute(db.select(User)).scalars().all()
+        else:
+            event = db.session.get(Event, event_id)
+            if event is None:
+                flash("Event not found.", "error")
+                return redirect(url_for("admin.email_compose"))
+
+            reg_query = db.select(Registration).where(
+                Registration.event_id == event_id,
+                Registration.status != "cancelled",
+            )
+            if recipient_filter == "paid":
+                reg_query = reg_query.where(Registration.payment_status == "paid")
+            elif recipient_filter == "unpaid":
+                reg_query = reg_query.where(Registration.payment_status == "unpaid")
+            elif recipient_filter == "comped":
+                reg_query = reg_query.where(Registration.payment_status == "comped")
+            elif recipient_filter == "confirmed":
+                reg_query = reg_query.where(Registration.status == "confirmed")
+
+            regs = db.session.execute(reg_query).scalars().all()
+            seen = set()
+            users = []
+            for r in regs:
+                if r.user_id not in seen:
+                    seen.add(r.user_id)
+                    users.append(r.user)
+
+        try:
+            count = send_mass_email(users, form.subject.data, form.body.data)
+            flash(f"Sent to {count} recipient(s).", "success")
+        except Exception as exc:
+            flash(f"Email send failed: {exc}", "error")
+
+        return redirect(url_for("admin.email_compose"))
+
+    return render_template("admin/email.html", form=form, events=events)

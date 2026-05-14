@@ -133,6 +133,36 @@ class AdminNotesForm(FlaskForm):
     submit = SubmitField("Save Notes")
 
 
+class SeatForm(FlaskForm):
+    label = StringField("Label", validators=[DataRequired(), Length(max=100)])
+    display_order = IntegerField("Display Order", default=0, validators=[Optional()])
+    submit = SubmitField("Add Seat")
+
+
+class BulkSeatForm(FlaskForm):
+    prefix = StringField("Label Prefix", default="Seat", validators=[DataRequired(), Length(max=50)])
+    count = IntegerField("Count", validators=[DataRequired(), NumberRange(min=1, max=200)])
+    start_number = IntegerField("Starting Number", default=1, validators=[DataRequired(), NumberRange(min=0)])
+    submit = SubmitField("Add Seats")
+
+
+class AdminEmailForm(FlaskForm):
+    event_id = SelectField("Event", coerce=int, validators=[Optional()])
+    recipient_filter = SelectField(
+        "Send To",
+        choices=[
+            ("all", "All registrants"),
+            ("confirmed", "Confirmed (any payment)"),
+            ("paid", "Paid only"),
+            ("unpaid", "Unpaid only"),
+            ("comped", "Comped only"),
+        ],
+    )
+    subject = StringField("Subject", validators=[DataRequired(), Length(max=300)])
+    body = TextAreaField("Body (HTML)", validators=[DataRequired()])
+    submit = SubmitField("Send Emails")
+
+
 class AdminSettingsForm(FlaskForm):
     site_name = StringField("Site Name", validators=[DataRequired()])
     site_tagline = StringField("Tagline", validators=[Optional()])
