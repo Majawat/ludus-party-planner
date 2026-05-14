@@ -33,7 +33,7 @@
           </span>
         </div>
 
-        <div class="form-control mb-4">
+        <div id="recipient-filter-row" class="form-control mb-4">
           {{ form.recipient_filter.label(class="label label-text font-semibold") }}
           {{ form.recipient_filter(class="select select-bordered w-full") }}
         </div>
@@ -62,4 +62,13 @@
   </div>
 
 </div>
+<script>
+  (function () {
+    var sel = document.getElementById('event_id');
+    var row = document.getElementById('recipient-filter-row');
+    function toggle() { row.style.display = sel.value === '0' ? 'none' : ''; }
+    sel.addEventListener('change', toggle);
+    toggle();
+  })();
+</script>
 {% endblock %}
