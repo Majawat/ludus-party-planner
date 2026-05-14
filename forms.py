@@ -119,6 +119,20 @@ class EventRegistrationForm(FlaskForm):
     submit = SubmitField("Register")
 
 
+class AdminMarkPaidForm(FlaskForm):
+    payment_method = SelectField(
+        "Payment Method",
+        choices=[("cash", "Cash"), ("venmo", "Venmo"), ("paypal", "PayPal"), ("other", "Other")],
+        validators=[DataRequired()],
+    )
+    submit = SubmitField("Mark Paid")
+
+
+class AdminNotesForm(FlaskForm):
+    admin_notes = TextAreaField("Admin Notes", validators=[Optional()])
+    submit = SubmitField("Save Notes")
+
+
 class AdminSettingsForm(FlaskForm):
     site_name = StringField("Site Name", validators=[DataRequired()])
     site_tagline = StringField("Tagline", validators=[Optional()])
