@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from app import create_app
-from models import User, Event, Registration, TicketType, db as _db, utcnow
+from models import User, Event, Registration, Seat, TicketType, db as _db, utcnow
 
 
 @pytest.fixture()
@@ -146,6 +146,14 @@ def ticket_type(app, published_event):
     _db.session.add(tt)
     _db.session.commit()
     return tt
+
+
+@pytest.fixture()
+def seat(app, published_event):
+    s = Seat(event_id=published_event.id, label="Seat 1", display_order=1)
+    _db.session.add(s)
+    _db.session.commit()
+    return s
 
 
 @pytest.fixture()

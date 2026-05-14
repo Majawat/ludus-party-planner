@@ -782,11 +782,10 @@ def email_compose():
                     seen.add(r.user_id)
                     users.append(r.user)
 
-        try:
-            count = send_mass_email(users, form.subject.data, form.body.data)
-            flash(f"Sent to {count} recipient(s).", "success")
-        except Exception as exc:
-            flash(f"Email send failed: {exc}", "error")
+        success_count, failed = send_mass_email(users, form.subject.data, form.body.data)
+        flash(f"Sent to {success_count} recipient(s).", "success")
+        if failed:
+            flash(f"Failed to deliver to: {', '.join(failed)}", "warning")
 
         return redirect(url_for("admin.email_compose"))
 

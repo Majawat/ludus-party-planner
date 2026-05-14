@@ -44,12 +44,16 @@ def send_password_reset_email(user, raw_token):
 
 def send_mass_email(recipients, subject, html_body):
     from app import mail
-    count = 0
+    success_count = 0
+    failed = []
     for user in recipients:
         msg = Message(subject=subject, recipients=[user.email], html=html_body)
-        mail.send(msg)
-        count += 1
-    return count
+        try:
+            mail.send(msg)
+            success_count += 1
+        except Exception:
+            failed.append(user.email)
+    return success_count, failed
 
 
 def send_registration_confirmation_email(registration):
