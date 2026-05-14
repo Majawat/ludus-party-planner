@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% set admin = true %}
+
+{% block title %}Users — Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 py-8">
+
+  <div class="breadcrumbs text-sm mb-6">
+    <ul>
+      <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li>Users</li>
+    </ul>
+  </div>
+
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold">Users</h1>
+    <span class="badge badge-neutral">{{ total }} total</span>
+  </div>
+
+  <div class="mb-4">
+    <input
+      type="search"
+      name="q"
+      value="{{ q }}"
+      placeholder="Search by name or email…"
+      class="input input-bordered w-full max-w-sm"
+      hx-get="{{ url_for('admin.users_list') }}"
+      hx-target="#user-tbody"
+      hx-trigger="input changed delay:300ms"
+      hx-include="[name='q']"
+    />
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name / Email</th>
+          <th>Role</th>
+          <th>Verified</th>
+          <th>Events</th>
+          <th>Joined</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="user-tbody">
+        {% include "admin/users/_rows.html" %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

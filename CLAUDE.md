@@ -75,7 +75,7 @@ ludus/
 ├── app.py                  # App factory (create_app), config, extension init
 ├── models.py               # ALL SQLAlchemy models in one file
 ├── forms.py                # ALL WTForms form classes in one file
-├── email.py                # Email sending helper functions
+├── mailer.py               # Email sending helper functions
 │
 ├── routes/
 │   ├── __init__.py

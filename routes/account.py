@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from forms import EventRegistrationForm
 from mailer import send_registration_confirmation_email
-from models import Event, Registration, TicketType, db, utcnow
+from models import Event, Registration, Seat, TicketType, db, utcnow
 
 account_bp = Blueprint("account", __name__)
 
@@ -154,3 +154,140 @@ def cancel_registration(slug):
 
     flash("Your registration has been cancelled.", "success")
     return redirect(url_for("account.dashboard"))
+
+
+def _get_seatable_registration(slug):
+    """Load published event + non-cancelled seatable registration, or return (None, None)."""
+    from sqlalchemy import select as sa_select
+    event = db.session.execute(
+        sa_select(Event).filter_by(slug=slug, status="published")
+    ).scalar_one_or_none()
+    if event is None:
+        return None, None
+    reg = Registration.query.filter_by(
+        user_id=current_user.id, event_id=event.id
+    ).first()
+    if reg is None or reg.status == "cancelled" or not reg.ticket_type.seatable:
+        return event, None
+    return event, reg
+
+
+@account_bp.route("/events/<slug>/seats")
+@login_required
+def seat_selection(slug):
+    event, reg = _get_seatable_registration(slug)
+    if event is None:
+        abort(404)
+    if reg is None:
+        flash("Seat selection is only available for confirmed registrations with a seatable ticket.", "warning")
+        return redirect(url_for("public.event_detail", slug=slug))
+    if not event.is_upcoming:
+        flash("Seat selection is closed for past events.", "warning")
+        return redirect(url_for("account.my_registration", slug=slug))
+
+    seats = (
+        db.session.execute(
+            db.select(Seat)
+            .where(Seat.event_id == event.id)
+            .order_by(Seat.display_order, Seat.id)
+        )
+        .scalars()
+        .all()
+    )
+    taken_regs = (
+        db.session.execute(
+            db.select(Registration)
+            .where(
+                Registration.event_id == event.id,
+                Registration.seat_id.isnot(None),
+                Registration.status != "cancelled",
+            )
+        )
+        .scalars()
+        .all()
+    )
+    taken_map = {r.seat_id: r for r in taken_regs}
+    return render_template(
+        "account/seats.html",
+        event=event,
+        registration=reg,
+        seats=seats,
+        taken_map=taken_map,
+    )
+
+
+@account_bp.route("/events/<slug>/seats/claim", methods=["POST"])
+@login_required
+def seat_claim(slug):
+    event, reg = _get_seatable_registration(slug)
+    if event is None:
+        abort(404)
+    if reg is None:
+        abort(403)
+    if not event.is_upcoming:
+        flash("Seat selection is closed for past events.", "warning")
+        return redirect(url_for("account.my_registration", slug=slug))
+
+    try:
+        seat_id = int(request.form.get("seat_id", ""))
+    except (ValueError, TypeError):
+        flash("Invalid seat selection.", "error")
+        return redirect(url_for("account.seat_selection", slug=slug))
+
+    seat = db.session.get(Seat, seat_id)
+    if seat is None or seat.event_id != event.id:
+        flash("Seat not found.", "error")
+        return redirect(url_for("account.seat_selection", slug=slug))
+
+    taken = Registration.query.filter(
+        Registration.seat_id == seat.id,
+        Registration.status != "cancelled",
+        Registration.id != reg.id,
+    ).count() > 0
+    if taken:
+        flash("That seat was just claimed. Please choose another.", "warning")
+        return redirect(url_for("account.seat_selection", slug=slug))
+
+    reg.seat_id = seat.id
+    db.session.commit()
+    flash(f"Seat '{seat.label}' claimed!", "success")
+    return redirect(url_for("account.my_registration", slug=slug))
+
+
+@account_bp.route("/events/<slug>/seats/release", methods=["POST"])
+@login_required
+def seat_release(slug):
+    event, reg = _get_seatable_registration(slug)
+    if event is None:
+        abort(404)
+    if reg is None:
+        abort(403)
+    reg.seat_id = None
+    db.session.commit()
+    flash("Seat released.", "success")
+    return redirect(url_for("account.my_registration", slug=slug))
+
+
+@account_bp.route("/events/<slug>/my-registration/toggle-loaner", methods=["POST"])
+@login_required
+def toggle_loaner(slug):
+    from sqlalchemy import select as sa_select
+    event = db.session.execute(
+        sa_select(Event).filter_by(slug=slug, status="published")
+    ).scalar_one_or_none()
+    if event is None:
+        abort(404)
+    reg = Registration.query.filter_by(
+        user_id=current_user.id, event_id=event.id
+    ).first_or_404()
+
+    if reg.status == "cancelled" or not event.is_upcoming:
+        abort(403)
+
+    reg.needs_loaner = "needs_loaner" in request.form
+    db.session.commit()
+    if reg.needs_loaner:
+        flash("Loaner request saved.", "success")
+    else:
+        flash("Loaner request removed.", "success")
+    return redirect(url_for("account.my_registration", slug=slug))

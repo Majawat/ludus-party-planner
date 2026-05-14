@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% set admin = true %}
+
+{% block title %}{{ user.name }} — Users — Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+
+  <div class="breadcrumbs text-sm mb-6">
+    <ul>
+      <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li><a href="{{ url_for('admin.users_list') }}">Users</a></li>
+      <li>{{ user.name }}</li>
+    </ul>
+  </div>
+
+  <h1 class="text-2xl font-bold mb-6">{{ user.name }}</h1>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+
+    <!-- User Info -->
+    <div class="card bg-base-200 shadow">
+      <div class="card-body">
+        <h2 class="card-title text-base">Account</h2>
+        <dl class="space-y-1 text-sm">
+          <div class="flex gap-2">
+            <dt class="opacity-60 w-32">Name</dt>
+            <dd>{{ user.name }}</dd>
+          </div>
+          <div class="flex gap-2">
+            <dt class="opacity-60 w-32">Email</dt>
+            <dd>{{ user.email }}</dd>
+          </div>
+          <div class="flex gap-2">
+            <dt class="opacity-60 w-32">Verified</dt>
+            <dd>
+              {% if user.email_verified_at %}
+                <span class="badge badge-success badge-sm">Yes</span>
+                <span class="text-xs opacity-50 ml-1">{{ user.email_verified_at.strftime('%Y-%m-%d') }}</span>
+              {% else %}
+                <span class="badge badge-warning badge-sm">No</span>
+              {% endif %}
+            </dd>
+          </div>
+          <div class="flex gap-2">
+            <dt class="opacity-60 w-32">Role</dt>
+            <dd>
+              {% if user.is_admin %}
+                <span class="badge badge-accent badge-sm">Admin</span>
+              {% else %}
+                <span class="opacity-60">User</span>
+              {% endif %}
+            </dd>
+          </div>
+          <div class="flex gap-2">
+            <dt class="opacity-60 w-32">Joined</dt>
+            <dd>{{ user.created_at.strftime('%Y-%m-%d') }}</dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+
+    <!-- Toggle Admin -->
+    <div class="card bg-base-200 shadow">
+      <div class="card-body">
+        <h2 class="card-title text-base">Admin Access</h2>
+        <p class="text-sm opacity-60 mb-4">
+          {% if user.is_admin %}
+            This user has admin access to all admin pages.
+          {% else %}
+            This user has no admin access.
+          {% endif %}
+        </p>
+        <form method="POST" action="{{ url_for('admin.user_toggle_admin', uid=user.id) }}"
+              onsubmit="return confirm('{% if user.is_admin %}Revoke admin access from {{ user.name }}?{% else %}Grant admin access to {{ user.name }}?{% endif %}')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          {% if user.is_admin %}
+            <button type="submit" class="btn btn-warning btn-sm">Revoke Admin</button>
+          {% else %}
+            <button type="submit" class="btn btn-accent btn-sm">Grant Admin</button>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Registration History -->
+  <div class="card bg-base-200 shadow">
+    <div class="card-body">
+      <h2 class="card-title text-base mb-3">Registration History ({{ registrations | length }})</h2>
+      {% if registrations %}
+        <div class="overflow-x-auto">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Event</th>
+                <th>Ticket</th>
+                <th>Status</th>
+                <th>Payment</th>
+                <th>Registered</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for reg in registrations %}
+                <tr>
+                  <td class="font-medium">{{ reg.event.name }}</td>
+                  <td class="text-sm opacity-60">{{ reg.ticket_type.name }}</td>
+                  <td>
+                    {% if reg.status == 'confirmed' %}
+                      <span class="badge badge-success badge-sm">Confirmed</span>
+                    {% elif reg.status == 'cancelled' %}
+                      <span class="badge badge-error badge-sm">Cancelled</span>
+                    {% else %}
+                      <span class="badge badge-warning badge-sm">Pending</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if reg.payment_status == 'paid' %}
+                      <span class="badge badge-success badge-sm">Paid</span>
+                    {% elif reg.payment_status == 'comped' %}
+                      <span class="badge badge-info badge-sm">Comped</span>
+                    {% else %}
+                      <span class="badge badge-warning badge-sm">Unpaid</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-sm opacity-60">{{ reg.created_at.strftime('%Y-%m-%d') }}</td>
+                  <td>
+                    <a href="{{ url_for('admin.registration_detail', id=reg.event_id, rid=reg.id) }}"
+                       class="btn btn-ghost btn-xs">View</a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-sm opacity-60">No registrations.</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% set admin = true %}
+
+{% block title %}Mass Email — Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 py-8">
+
+  <div class="breadcrumbs text-sm mb-6">
+    <ul>
+      <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li>Email</li>
+    </ul>
+  </div>
+
+  <h1 class="text-2xl font-bold mb-2">Send Mass Email</h1>
+  <p class="text-base-content/60 text-sm mb-6">Compose and send an email to a group of users.</p>
+
+  <div class="alert alert-warning mb-6">
+    <span>Emails are sent immediately and cannot be undone. Double-check your recipient filter and subject before sending.</span>
+  </div>
+
+  <div class="card bg-base-200 shadow">
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('admin.email_compose') }}">
+        {{ form.hidden_tag() }}
+
+        <div class="form-control mb-4">
+          {{ form.event_id.label(class="label label-text font-semibold") }}
+          {{ form.event_id(class="select select-bordered w-full") }}
+          <span class="label-text-alt opacity-60 mt-1">
+            Select an event to email its registrants, or choose "all users" for a site-wide message.
+          </span>
+        </div>
+
+        <div class="form-control mb-4">
+          {{ form.recipient_filter.label(class="label label-text font-semibold") }}
+          {{ form.recipient_filter(class="select select-bordered w-full") }}
+        </div>
+
+        <div class="form-control mb-4">
+          {{ form.subject.label(class="label label-text font-semibold") }}
+          {{ form.subject(class="input input-bordered w-full", placeholder="Email subject…") }}
+          {% for error in form.subject.errors %}
+            <span class="label-text-alt text-error">{{ error }}</span>
+          {% endfor %}
+        </div>
+
+        <div class="form-control mb-6">
+          {{ form.body.label(class="label label-text font-semibold") }}
+          <span class="label-text-alt opacity-60 mb-1">HTML is supported.</span>
+          {{ form.body(class="textarea textarea-bordered w-full font-mono text-sm", rows=12,
+                       placeholder="<p>Hi,</p>\n<p>…</p>") }}
+          {% for error in form.body.errors %}
+            <span class="label-text-alt text-error">{{ error }}</span>
+          {% endfor %}
+        </div>
+
+        {{ form.submit(class="btn btn-primary") }}
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

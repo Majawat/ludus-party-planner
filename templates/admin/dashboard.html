@@ -29,25 +29,24 @@
       </div>
     </a>
 
-    <div class="card bg-base-200 shadow opacity-50 cursor-not-allowed">
+    <a href="{{ url_for('admin.users_list') }}"
+       class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
       <div class="card-body">
-        <div class="flex items-center gap-2">
+        <div class="flex items-center justify-between">
           <h2 class="card-title">Users</h2>
-          <span class="badge badge-ghost badge-sm">Phase 8</span>
+          <span class="badge badge-primary">{{ user_count }}</span>
         </div>
-        <p class="text-base-content/70 text-sm">Manage user accounts, promote admins, comp tickets.</p>
+        <p class="text-base-content/70 text-sm">Manage user accounts and admin access.</p>
       </div>
-    </div>
+    </a>
 
-    <div class="card bg-base-200 shadow opacity-50 cursor-not-allowed">
+    <a href="{{ url_for('admin.email_compose') }}"
+       class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
       <div class="card-body">
-        <div class="flex items-center gap-2">
-          <h2 class="card-title">Mass Email</h2>
-          <span class="badge badge-ghost badge-sm">Phase 9</span>
-        </div>
-        <p class="text-base-content/70 text-sm">Email all registrants for an event.</p>
+        <h2 class="card-title">Mass Email</h2>
+        <p class="text-base-content/70 text-sm">Email registrants for an event or all users.</p>
       </div>
-    </div>
+    </a>
 
   </div>
 </div>

@@ -188,6 +188,42 @@
   </div>
   {% endif %}
 
+  {% if event.seating_enabled and reg.ticket_type.seatable and reg.status != 'cancelled' %}
+  <!-- Seat -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title text-base">Seat</h2>
+      {% if reg.seat %}
+        <p class="text-sm mb-3">Currently: <strong>{{ reg.seat.label }}</strong></p>
+      {% else %}
+        <p class="text-sm opacity-60 mb-3">No seat assigned.</p>
+      {% endif %}
+      <form method="POST" action="{{ url_for('admin.registration_assign_seat', id=event.id, rid=reg.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <div class="flex gap-2 items-center flex-wrap">
+          <select name="seat_id" class="select select-bordered select-sm">
+            <option value="none">— No seat —</option>
+            {% for seat in event.seats | sort(attribute='display_order') %}
+              {% set taken_by = namespace(reg=None) %}
+              {% for r in event.registrations %}
+                {% if r.seat_id == seat.id and r.status != 'cancelled' and r.id != reg.id %}
+                  {% set taken_by.reg = r %}
+                {% endif %}
+              {% endfor %}
+              <option value="{{ seat.id }}"
+                      {% if reg.seat_id == seat.id %}selected{% endif %}
+                      {% if taken_by.reg %}disabled{% endif %}>
+                {{ seat.label }}{% if taken_by.reg %} ({{ taken_by.reg.user.name }}){% endif %}
+              </option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-sm">Assign</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Admin Notes -->
   <div class="card bg-base-200 md:col-span-2">
     <div class="card-body">

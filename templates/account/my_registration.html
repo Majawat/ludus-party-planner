@@ -67,6 +67,49 @@
     </div>
   </div>
 
+  {% if event.seating_enabled and registration.ticket_type.seatable and registration.status != 'cancelled' %}
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title mb-2">Seat</h2>
+      {% if registration.seat %}
+        <p class="text-sm mb-3">Your seat: <strong>{{ registration.seat.label }}</strong></p>
+        {% if event.is_upcoming %}
+          <div class="flex gap-2 flex-wrap">
+            <a href="{{ url_for('account.seat_selection', slug=event.slug) }}" class="btn btn-sm">Change Seat</a>
+            <form method="POST" action="{{ url_for('account.seat_release', slug=event.slug) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="btn btn-outline btn-sm">Release Seat</button>
+            </form>
+          </div>
+        {% endif %}
+      {% else %}
+        <p class="text-sm text-base-content/70 mb-3">No seat selected yet.</p>
+        {% if event.is_upcoming %}
+          <a href="{{ url_for('account.seat_selection', slug=event.slug) }}" class="btn btn-primary btn-sm">Choose a Seat</a>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if event.is_upcoming and registration.status != 'cancelled' %}
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title mb-2">Loaner Equipment</h2>
+      <p class="text-sm text-base-content/70 mb-3">Check this if you need to borrow a PC or laptop for the event.</p>
+      <form method="POST" action="{{ url_for('account.toggle_loaner', slug=event.slug) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" name="needs_loaner" class="checkbox checkbox-primary"
+                 onchange="this.form.submit()"
+                 {% if registration.needs_loaner %}checked{% endif %} />
+          <span class="text-sm">I need a loaner PC / laptop</span>
+        </label>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
   {% if registration.status != 'cancelled' and event.is_upcoming %}
     <div class="card bg-base-200 shadow">
       <div class="card-body">
