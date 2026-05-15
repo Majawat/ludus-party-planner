@@ -75,7 +75,44 @@
           </div>
         {% endif %}
 
-        <div class="card-actions justify-end">
+        {% if questions %}
+        <div class="divider">Event Questions</div>
+        {% for q in questions %}
+        <div class="form-control mb-4">
+          <label class="label">
+            <span class="label-text font-semibold">
+              {{ q.question_text }}
+              {% if q.is_required %}<span class="text-error ml-1">*</span>{% endif %}
+            </span>
+          </label>
+          {% if q.question_type == "text" %}
+            <input type="text" name="{{ q.field_name }}"
+                   class="input input-bordered w-full"
+                   value="{{ form_data.get(q.field_name, '') if form_data else '' }}"
+                   {% if q.is_required %}required{% endif %} />
+          {% elif q.question_type == "boolean" %}
+            <label class="cursor-pointer flex items-center gap-3 mt-1">
+              <input type="checkbox" name="{{ q.field_name }}" class="checkbox"
+                     {% if form_data and form_data.get(q.field_name) %}checked{% endif %} />
+              <span class="label-text">Yes</span>
+            </label>
+          {% elif q.question_type == "select" %}
+            <select name="{{ q.field_name }}" class="select select-bordered w-full"
+                    {% if q.is_required %}required{% endif %}>
+              <option value="">— Select —</option>
+              {% for opt in q.options_list %}
+                <option value="{{ opt }}"
+                        {% if form_data and form_data.get(q.field_name) == opt %}selected{% endif %}>
+                  {{ opt }}
+                </option>
+              {% endfor %}
+            </select>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <div class="card-actions justify-end mt-4">
           <a href="{{ url_for('public.event_detail', slug=event.slug) }}" class="btn btn-ghost">Cancel</a>
           {{ form.submit(class="btn btn-primary") }}
         </div>

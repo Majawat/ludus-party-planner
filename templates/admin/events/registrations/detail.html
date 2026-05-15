@@ -244,6 +244,32 @@
 
 </div>
 
+<!-- Custom Question Answers -->
+{% if event.questions %}
+<div class="mt-8">
+  <div class="card bg-base-200 shadow">
+    <div class="card-body">
+      <h2 class="card-title text-base">Event Questions</h2>
+      <dl class="divide-y divide-base-300">
+        {% for q in event.questions %}
+        <div class="py-3 flex gap-4">
+          <dt class="font-semibold w-1/3 text-sm">{{ q.question_text }}</dt>
+          <dd class="w-2/3 text-sm">
+            {% set ans = answers_by_qid.get(q.id) %}
+            {% if ans %}
+              {{ ans }}
+            {% else %}
+              <span class="text-base-content/40">—</span>
+            {% endif %}
+          </dd>
+        </div>
+        {% endfor %}
+      </dl>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- Cancel Registration -->
 {% if reg.status != 'cancelled' %}
   <div class="mt-8 pt-6 border-t border-base-300">

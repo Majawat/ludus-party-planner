@@ -182,6 +182,12 @@ class Event(db.Model):
         back_populates="event",
         cascade="all, delete-orphan",
     )
+    questions = db.relationship(
+        "EventQuestion",
+        back_populates="event",
+        order_by="EventQuestion.display_order",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def capacity(self):
@@ -268,6 +274,11 @@ class Registration(db.Model):
     event = db.relationship("Event", back_populates="registrations")
     ticket_type = db.relationship("TicketType", back_populates="registrations")
     seat = db.relationship("Seat", backref="registrations")
+    answers = db.relationship(
+        "RegistrationAnswer",
+        back_populates="registration",
+        cascade="all, delete-orphan",
+    )
 
 
 class EventScheduleItem(db.Model):
@@ -371,6 +382,56 @@ class GameSuggestionVote(db.Model):
 
     suggestion = db.relationship("GameSuggestion", back_populates="votes")
     voter = db.relationship("User", backref="suggestion_votes")
+
+
+class EventQuestion(db.Model):
+    __tablename__ = "event_questions"
+    __table_args__ = (UniqueConstraint("event_id", "field_name"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
+    question_text = db.Column(db.Text, nullable=False)
+    question_type = db.Column(db.Text, nullable=False, default="text")
+    field_name = db.Column(db.Text, nullable=False)
+    is_required = db.Column(db.Boolean, default=False, nullable=False)
+    display_order = db.Column(db.Integer, default=0, nullable=False)
+    options = db.Column(db.Text, nullable=True)  # JSON array, only used for "select" type
+
+    event = db.relationship("Event", back_populates="questions")
+    answers = db.relationship("RegistrationAnswer", back_populates="question")
+
+    @property
+    def options_list(self):
+        if self.options:
+            return json.loads(self.options)
+        return []
+
+
+class RegistrationAnswer(db.Model):
+    __tablename__ = "registration_answers"
+    __table_args__ = (UniqueConstraint("registration_id", "question_id"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    registration_id = db.Column(db.Integer, db.ForeignKey("registrations.id"), nullable=False)
+    question_id = db.Column(db.Integer, db.ForeignKey("event_questions.id"), nullable=False)
+    answer = db.Column(db.Text, nullable=True)
+
+    registration = db.relationship("Registration", back_populates="answers")
+    question = db.relationship("EventQuestion", back_populates="answers")
+
+
+def unique_field_name(question_text: str, event_id: int, exclude_id: int = None) -> str:
+    base = slugify(question_text).replace("-", "_") or "question"
+    base = base[:60]
+    name, suffix = base, 2
+    while True:
+        q = EventQuestion.query.filter_by(event_id=event_id, field_name=name)
+        if exclude_id is not None:
+            q = q.filter(EventQuestion.id != exclude_id)
+        if q.first() is None:
+            return name
+        name = f"{base}_{suffix}"
+        suffix += 1
 
 
 def unique_slug(base_slug: str, exclude_id: int = None) -> str:

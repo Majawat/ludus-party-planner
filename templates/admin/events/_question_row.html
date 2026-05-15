@@ -1,0 +1,33 @@
+<tr id="question-row-{{ q.id }}">
+  <td class="font-semibold">{{ q.question_text }}</td>
+  <td>
+    {% if q.question_type == "text" %}
+      <span class="badge badge-info badge-sm">Text</span>
+    {% elif q.question_type == "boolean" %}
+      <span class="badge badge-success badge-sm">Yes / No</span>
+    {% elif q.question_type == "select" %}
+      <span class="badge badge-warning badge-sm">Multiple Choice</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if q.is_required %}
+      <span class="badge badge-error badge-sm">Required</span>
+    {% else %}
+      <span class="text-base-content/40 text-sm">Optional</span>
+    {% endif %}
+  </td>
+  <td class="text-base-content/60">{{ answer_count }}</td>
+  <td class="flex gap-1 items-center">
+    <a href="{{ url_for('admin.question_edit', id=event.id, qid=q.id) }}"
+       class="btn btn-sm btn-ghost">Edit</a>
+    <form method="POST"
+          action="{{ url_for('admin.question_delete', id=event.id, qid=q.id) }}"
+          hx-post="{{ url_for('admin.question_delete', id=event.id, qid=q.id) }}"
+          hx-target="#question-row-{{ q.id }}"
+          hx-swap="outerHTML"
+          onsubmit="return confirm('Delete this question?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <button type="submit" class="btn btn-ghost btn-xs text-error">Delete</button>
+    </form>
+  </td>
+</tr>

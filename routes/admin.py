@@ -8,12 +8,13 @@ from flask_login import current_user
 
 from forms import (
     AdminEmailForm, AdminMarkPaidForm, AdminNotesForm, AdminSettingsForm,
-    AnnouncementForm, BulkSeatForm, EventForm, LoanerEquipmentForm,
+    AnnouncementForm, BulkSeatForm, EventForm, EventQuestionForm, LoanerEquipmentForm,
     SeatForm, ScheduleItemForm, TicketTypeForm,
 )
 from models import (
-    Event, EventAnnouncement, EventScheduleItem, LoanerEquipment, LoanerRequest,
-    Registration, Seat, SiteSettings, TicketType, User, db, slugify, unique_slug,
+    Event, EventAnnouncement, EventQuestion, EventScheduleItem, LoanerEquipment, LoanerRequest,
+    Registration, RegistrationAnswer, Seat, SiteSettings, TicketType, User,
+    db, slugify, unique_field_name, unique_slug,
 )
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -419,14 +420,18 @@ def registrations_export(id):
         .order_by(User.name)
     ).scalars().all()
 
+    questions = event.questions  # ordered by display_order via relationship
+
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
         "Name", "Email", "Ticket Type", "Status", "Payment Status",
         "Payment Method", "Paid At", "Checked In At", "Needs Loaner",
         "Emergency Contact Name", "Emergency Contact Phone", "Registered At",
+        *[q.question_text for q in questions],
     ])
     for reg in registrations:
+        answers_by_qid = {ans.question_id: ans.answer for ans in reg.answers}
         writer.writerow([
             reg.user.name,
             reg.user.email,
@@ -440,6 +445,7 @@ def registrations_export(id):
             reg.emergency_contact_name or "",
             reg.emergency_contact_phone or "",
             reg.created_at.strftime("%Y-%m-%d %H:%M"),
+            *[answers_by_qid.get(q.id, "") or "" for q in questions],
         ])
 
     filename = f"{event.slug}-registrations.csv"
@@ -456,12 +462,14 @@ def registration_detail(id, rid):
     reg = _get_registration_or_404(event, rid)
     paid_form = AdminMarkPaidForm(prefix="paid")
     notes_form = AdminNotesForm(prefix="notes", obj=reg)
+    answers_by_qid = {ans.question_id: ans.answer for ans in reg.answers}
     return render_template(
         "admin/events/registrations/detail.html",
         event=event,
         reg=reg,
         paid_form=paid_form,
         notes_form=notes_form,
+        answers_by_qid=answers_by_qid,
     )
 
 
@@ -1021,3 +1029,128 @@ def checkin_search(id):
         .all()
     )
     return render_template("admin/events/_checkin_rows.html", registrations=registrations, event=event)
+
+
+# ---------------------------------------------------------------------------
+# Custom Questions
+# ---------------------------------------------------------------------------
+
+@admin_bp.route("/events/<int:id>/questions")
+def questions_list(id):
+    event = _get_event_or_404(id)
+    form = EventQuestionForm()
+    questions_with_counts = []
+    for q in event.questions:
+        count = db.session.execute(
+            db.select(db.func.count(RegistrationAnswer.id)).where(RegistrationAnswer.question_id == q.id)
+        ).scalar()
+        questions_with_counts.append((q, count))
+    return render_template(
+        "admin/events/questions.html",
+        event=event,
+        questions_with_counts=questions_with_counts,
+        form=form,
+    )
+
+
+@admin_bp.route("/events/<int:id>/questions/add", methods=["POST"])
+def question_add(id):
+    event = _get_event_or_404(id)
+    form = EventQuestionForm()
+    if form.validate_on_submit():
+        field_name = unique_field_name(form.question_text.data, event.id)
+        options = None
+        if form.question_type.data == "select":
+            raw = form.options.data or ""
+            opts = [o.strip() for o in raw.splitlines() if o.strip()]
+            if opts:
+                options = json.dumps(opts)
+        q = EventQuestion(
+            event_id=event.id,
+            question_text=form.question_text.data,
+            question_type=form.question_type.data,
+            field_name=field_name,
+            is_required=form.is_required.data,
+            display_order=form.display_order.data or 0,
+            options=options,
+        )
+        db.session.add(q)
+        db.session.commit()
+        if request.headers.get("HX-Request"):
+            return render_template("admin/events/_question_row.html", q=q, event=event, answer_count=0)
+        flash("Question added.", "success")
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"{field}: {error}", "error")
+    return redirect(url_for("admin.questions_list", id=event.id))
+
+
+@admin_bp.route("/events/<int:id>/questions/<int:qid>/edit", methods=["GET", "POST"])
+def question_edit(id, qid):
+    event = _get_event_or_404(id)
+    q = db.session.get(EventQuestion, qid)
+    if q is None or q.event_id != event.id:
+        abort(404)
+
+    has_answers = db.session.execute(
+        db.select(db.func.count(RegistrationAnswer.id)).where(RegistrationAnswer.question_id == q.id)
+    ).scalar() > 0
+
+    if request.method == "POST":
+        form = EventQuestionForm()
+        if form.validate_on_submit():
+            if has_answers and form.question_type.data != q.question_type:
+                flash("Cannot change question type when answers already exist.", "error")
+                options_text = "\n".join(q.options_list)
+                return render_template(
+                    "admin/events/question_edit.html",
+                    event=event, q=q, form=form,
+                    has_answers=has_answers, options_text=options_text,
+                )
+            options = None
+            if form.question_type.data == "select":
+                raw = form.options.data or ""
+                opts = [o.strip() for o in raw.splitlines() if o.strip()]
+                if opts:
+                    options = json.dumps(opts)
+            q.question_text = form.question_text.data
+            q.question_type = form.question_type.data
+            q.is_required = form.is_required.data
+            q.display_order = form.display_order.data or 0
+            q.options = options
+            db.session.commit()
+            flash("Question updated.", "success")
+            return redirect(url_for("admin.questions_list", id=event.id))
+    else:
+        form = EventQuestionForm(obj=q)
+        form.options.data = "\n".join(q.options_list)
+
+    options_text = "\n".join(q.options_list)
+    return render_template(
+        "admin/events/question_edit.html",
+        event=event, q=q, form=form,
+        has_answers=has_answers, options_text=options_text,
+    )
+
+
+@admin_bp.route("/events/<int:id>/questions/<int:qid>/delete", methods=["POST"])
+def question_delete(id, qid):
+    event = _get_event_or_404(id)
+    q = db.session.get(EventQuestion, qid)
+    if q is None or q.event_id != event.id:
+        abort(404)
+
+    count = db.session.execute(
+        db.select(db.func.count(RegistrationAnswer.id)).where(RegistrationAnswer.question_id == q.id)
+    ).scalar()
+    if count > 0:
+        flash(f"Cannot delete: this question has {count} answer(s). Remove all registrations first.", "error")
+        return redirect(url_for("admin.questions_list", id=event.id))
+
+    db.session.delete(q)
+    db.session.commit()
+    if request.headers.get("HX-Request"):
+        return "", 200
+    flash("Question deleted.", "success")
+    return redirect(url_for("admin.questions_list", id=event.id))

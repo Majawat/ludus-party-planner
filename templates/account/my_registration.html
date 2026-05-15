@@ -168,6 +168,62 @@
   </div>
   {% endif %}
 
+  {% if questions %}
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title mb-4">Event Questions</h2>
+      {% if registration.status != 'cancelled' and event.is_upcoming %}
+        <form method="POST" action="{{ url_for('account.update_answers', slug=event.slug) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          {% for q in questions %}
+          <div class="form-control mb-4">
+            <label class="label">
+              <span class="label-text font-semibold">
+                {{ q.question_text }}
+                {% if q.is_required %}<span class="text-error ml-1">*</span>{% endif %}
+              </span>
+            </label>
+            {% set current_answer = answers_by_qid.get(q.id, '') %}
+            {% if q.question_type == "text" %}
+              <input type="text" name="{{ q.field_name }}" class="input input-bordered w-full"
+                     value="{{ current_answer or '' }}"
+                     {% if q.is_required %}required{% endif %} />
+            {% elif q.question_type == "boolean" %}
+              <label class="cursor-pointer flex items-center gap-3 mt-1">
+                <input type="checkbox" name="{{ q.field_name }}" class="checkbox"
+                       {% if current_answer == 'true' %}checked{% endif %} />
+                <span class="label-text">Yes</span>
+              </label>
+            {% elif q.question_type == "select" %}
+              <select name="{{ q.field_name }}" class="select select-bordered w-full"
+                      {% if q.is_required %}required{% endif %}>
+                <option value="">— Select —</option>
+                {% for opt in q.options_list %}
+                  <option value="{{ opt }}" {% if current_answer == opt %}selected{% endif %}>{{ opt }}</option>
+                {% endfor %}
+              </select>
+            {% endif %}
+          </div>
+          {% endfor %}
+          <button type="submit" class="btn btn-primary btn-sm">Save Answers</button>
+        </form>
+      {% else %}
+        <dl class="divide-y divide-base-300">
+          {% for q in questions %}
+          <div class="py-3 flex gap-4">
+            <dt class="font-semibold w-1/3 text-sm">{{ q.question_text }}</dt>
+            <dd class="w-2/3 text-sm">
+              {% set ans = answers_by_qid.get(q.id) %}
+              {{ ans if ans else '—' }}
+            </dd>
+          </div>
+          {% endfor %}
+        </dl>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   {% if registration.status != 'cancelled' and event.is_upcoming %}
     <div class="card bg-base-200 shadow">
       <div class="card-body">

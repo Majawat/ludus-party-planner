@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% set admin = true %}
+
+{% block title %}Custom Questions — {{ event.name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 py-8">
+
+  <div class="breadcrumbs text-sm mb-6">
+    <ul>
+      <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+      <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+      <li>Custom Questions</li>
+    </ul>
+  </div>
+
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-bold">Custom Questions</h1>
+  </div>
+
+  <!-- Add question form -->
+  <div class="card bg-base-200 shadow mb-8">
+    <div class="card-body">
+      <h2 class="card-title text-lg mb-4">Add Question</h2>
+      <form method="POST" action="{{ url_for('admin.question_add', id=event.id) }}"
+            hx-post="{{ url_for('admin.question_add', id=event.id) }}"
+            hx-target="#questions-tbody"
+            hx-swap="beforeend"
+            hx-on::after-request="this.reset(); updateOptionsVisibility(this.querySelector('#add-question-type'))">
+        {{ form.hidden_tag() }}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div class="form-control sm:col-span-2">
+            {{ form.question_text.label(class="label label-text font-semibold") }}
+            {{ form.question_text(class="input input-bordered w-full", placeholder="e.g. Any dietary restrictions?") }}
+          </div>
+          <div class="form-control">
+            {{ form.question_type.label(class="label label-text font-semibold") }}
+            {{ form.question_type(class="select select-bordered w-full", id="add-question-type", onchange="updateOptionsVisibility(this)") }}
+          </div>
+          <div class="form-control">
+            {{ form.display_order.label(class="label label-text font-semibold") }}
+            {{ form.display_order(class="input input-bordered w-full") }}
+          </div>
+          <div class="form-control sm:col-span-2" id="add-options-field" style="display:none">
+            {{ form.options.label(class="label label-text font-semibold") }}
+            {{ form.options(class="textarea textarea-bordered w-full", rows="4", placeholder="One option per line:\nYes\nNo\nMaybe") }}
+          </div>
+          <div class="form-control">
+            <label class="label cursor-pointer justify-start gap-3">
+              {{ form.is_required(class="checkbox") }}
+              <span class="label-text">{{ form.is_required.label.text }}</span>
+            </label>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Add Question</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Questions table -->
+  {% if questions_with_counts %}
+  <div class="overflow-x-auto">
+    <table class="table table-zebra w-full">
+      <thead>
+        <tr>
+          <th>Question</th>
+          <th>Type</th>
+          <th>Required</th>
+          <th>Answers</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="questions-tbody">
+        {% for q, answer_count in questions_with_counts %}
+          {% include "admin/events/_question_row.html" %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center text-base-content/50 py-12" id="questions-empty">
+    <p>No questions yet. Add the first one above.</p>
+  </div>
+  <table class="hidden"><tbody id="questions-tbody"></tbody></table>
+  {% endif %}
+
+</div>
+
+<script>
+function updateOptionsVisibility(selectEl) {
+  var container = selectEl.closest('form').querySelector('[id$="-options-field"]') || document.getElementById('add-options-field');
+  if (selectEl.value === 'select') {
+    container.style.display = '';
+  } else {
+    container.style.display = 'none';
+  }
+}
+// Run on page load in case browser restores form values
+document.addEventListener('DOMContentLoaded', function() {
+  var sel = document.getElementById('add-question-type');
+  if (sel) updateOptionsVisibility(sel);
+});
+</script>
+{% endblock %}

@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from forms import EventRegistrationForm, PotluckItemForm
 from mailer import send_registration_confirmation_email
-from models import Event, LoanerEquipment, LoanerRequest, PotluckItem, Registration, Seat, TicketType, db, utcnow
+from models import Event, EventQuestion, LoanerEquipment, LoanerRequest, PotluckItem, Registration, RegistrationAnswer, Seat, TicketType, db, utcnow
 
 account_bp = Blueprint("account", __name__)
 
@@ -73,6 +73,8 @@ def register_event(slug):
         for t in available_tickets
     ]
 
+    questions = event.questions
+
     if form.validate_on_submit():
         ticket = TicketType.query.filter_by(
             id=form.ticket_type_id.data, event_id=event.id, is_active=True
@@ -80,6 +82,22 @@ def register_event(slug):
         if ticket is None or ticket.quantity_sold >= ticket.quantity_total:
             flash("The selected ticket type is no longer available. Please try again.", "error")
             return redirect(url_for("account.register_event", slug=slug))
+
+        # Validate required custom questions (boolean is always "answered" — unchecked = false)
+        for q in questions:
+            if q.is_required and q.question_type != "boolean":
+                val = request.form.get(q.field_name, "").strip()
+                if not val:
+                    flash(f'"{q.question_text}" is required.', "error")
+                    return render_template(
+                        "account/register_event.html",
+                        event=event,
+                        form=form,
+                        has_lodging_tickets=has_lodging_tickets,
+                        available_tickets=available_tickets,
+                        questions=questions,
+                        form_data=request.form,
+                    )
 
         registration = Registration(
             user_id=current_user.id,
@@ -92,6 +110,25 @@ def register_event(slug):
             emergency_contact_phone=form.emergency_contact_phone.data or None,
         )
         db.session.add(registration)
+        db.session.flush()  # get registration.id before creating answers
+
+        for q in questions:
+            if q.question_type == "boolean":
+                val = "true" if request.form.get(q.field_name) else "false"
+                db.session.add(RegistrationAnswer(
+                    registration_id=registration.id,
+                    question_id=q.id,
+                    answer=val,
+                ))
+            else:
+                val = request.form.get(q.field_name, "").strip()
+                if val:
+                    db.session.add(RegistrationAnswer(
+                        registration_id=registration.id,
+                        question_id=q.id,
+                        answer=val,
+                    ))
+
         db.session.commit()
 
         try:
@@ -108,6 +145,8 @@ def register_event(slug):
         form=form,
         has_lodging_tickets=has_lodging_tickets,
         available_tickets=available_tickets,
+        questions=questions,
+        form_data=None,
     )
 
 
@@ -130,12 +169,71 @@ def my_registration(slug):
         else []
     )
 
+    answers_by_qid = {ans.question_id: ans.answer for ans in registration.answers}
+
     return render_template(
         "account/my_registration.html",
         event=event,
         registration=registration,
         available_equipment=available_equipment,
+        questions=event.questions,
+        answers_by_qid=answers_by_qid,
     )
+
+
+@account_bp.route("/events/<slug>/my-registration/answers", methods=["POST"])
+@login_required
+def update_answers(slug):
+    event = db.session.execute(
+        select(Event).filter_by(slug=slug, status="published")
+    ).scalar_one_or_none()
+    if event is None:
+        abort(404)
+
+    registration = Registration.query.filter_by(
+        user_id=current_user.id, event_id=event.id
+    ).first_or_404()
+
+    if not event.is_upcoming or registration.status == "cancelled":
+        flash("Answers cannot be updated for this registration.", "warning")
+        return redirect(url_for("account.my_registration", slug=slug))
+
+    questions = event.questions
+
+    # Validate required questions
+    for q in questions:
+        if q.is_required and q.question_type != "boolean":
+            val = request.form.get(q.field_name, "").strip()
+            if not val:
+                flash(f'"{q.question_text}" is required.', "error")
+                return redirect(url_for("account.my_registration", slug=slug))
+
+    existing_answers = {ans.question_id: ans for ans in registration.answers}
+    for q in questions:
+        if q.question_type == "boolean":
+            val = "true" if request.form.get(q.field_name) else "false"
+            if q.id in existing_answers:
+                existing_answers[q.id].answer = val
+            else:
+                db.session.add(RegistrationAnswer(
+                    registration_id=registration.id,
+                    question_id=q.id,
+                    answer=val,
+                ))
+        else:
+            val = request.form.get(q.field_name, "").strip()
+            if q.id in existing_answers:
+                existing_answers[q.id].answer = val if val else None
+            elif val:
+                db.session.add(RegistrationAnswer(
+                    registration_id=registration.id,
+                    question_id=q.id,
+                    answer=val,
+                ))
+
+    db.session.commit()
+    flash("Your answers have been updated.", "success")
+    return redirect(url_for("account.my_registration", slug=slug))
 
 
 @account_bp.route("/events/<slug>/my-registration/cancel", methods=["POST"])
