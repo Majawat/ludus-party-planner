@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from app import create_app
-from models import User, Event, Registration, Seat, TicketType, SiteSettings, db as _db, utcnow
+from models import User, Event, Registration, Seat, TicketType, SiteSettings, UserPlatformAccount, db as _db, utcnow
 
 
 @pytest.fixture()
@@ -180,3 +180,32 @@ def registration(app, regular_user, published_event, ticket_type):
     _db.session.add(reg)
     _db.session.commit()
     return reg
+
+
+@pytest.fixture()
+def oauth_user(app):
+    """A user created via OAuth with no password and a linked Discord account."""
+    user = User(
+        name="OAuth User",
+        email="oauth@example.com",
+        email_verified_at=utcnow(),
+    )
+    # password_hash stays None (OAuth-only user)
+    _db.session.add(user)
+    _db.session.flush()
+    acct = UserPlatformAccount(
+        user_id=user.id,
+        platform="discord",
+        username="OAuthUser#1234",
+        platform_user_id="999888777",
+    )
+    _db.session.add(acct)
+    _db.session.commit()
+    return user
+
+
+@pytest.fixture()
+def discord_settings(app):
+    """Seed the Discord OAuth client credentials in SiteSettings."""
+    SiteSettings.set("discord_oauth_client_id", "test-discord-client-id")
+    SiteSettings.set("discord_oauth_client_secret", "test-discord-client-secret")

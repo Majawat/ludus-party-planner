@@ -52,5 +52,16 @@
   <p class="mt-4 text-center">
     Already have an account? <a href="{{ url_for('auth.login') }}" class="link">Login</a>
   </p>
+
+  {% if oauth_providers %}
+  <div class="divider mt-6">or</div>
+  <div class="space-y-2">
+    {% for provider in oauth_providers %}
+    <a href="{{ url_for('auth.oauth_login', provider=provider) }}" class="btn btn-outline w-full">
+      Sign up with {{ provider|capitalize }}
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

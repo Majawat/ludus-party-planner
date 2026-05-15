@@ -35,7 +35,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.Text, nullable=False)
     email = db.Column(db.Text, nullable=False, unique=True)
-    password_hash = db.Column(db.Text, nullable=False)
+    password_hash = db.Column(db.Text, nullable=True)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     newsletter_opt_in = db.Column(db.Boolean, default=False, nullable=False)
     avatar_url = db.Column(db.Text, nullable=True)
@@ -43,11 +43,19 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
+    platform_accounts = db.relationship("UserPlatformAccount", back_populates="user")
+
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
+        if self.password_hash is None:
+            return False
         return check_password_hash(self.password_hash, password)
+
+    @property
+    def has_password(self):
+        return self.password_hash is not None
 
     @property
     def is_verified(self):
@@ -101,6 +109,22 @@ class PasswordResetToken(db.Model):
     @property
     def is_valid(self):
         return self.used_at is None and self.expires_at > utcnow()
+
+
+class UserPlatformAccount(db.Model):
+    __tablename__ = "user_platform_accounts"
+    __table_args__ = (
+        UniqueConstraint("user_id", "platform"),
+        UniqueConstraint("platform", "platform_user_id"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    platform = db.Column(db.Text, nullable=False)
+    username = db.Column(db.Text, nullable=False)
+    platform_user_id = db.Column(db.Text, nullable=True)
+
+    user = db.relationship("User", back_populates="platform_accounts")
 
 
 class SiteSettings(db.Model):

@@ -7,6 +7,7 @@ from flask_mail import Mail
 from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
 
+from extensions import oauth
 from models import db, User, SiteSettings, Event, TicketType
 
 migrate = Migrate()
@@ -51,6 +52,7 @@ def create_app(test_config=None):
     login_manager.init_app(app)
     mail.init_app(app)
     csrf.init_app(app)
+    oauth.init_app(app)
 
     login_manager.login_view = "auth.login"
     login_manager.login_message_category = "warning"
@@ -125,6 +127,10 @@ def create_app(test_config=None):
         "show_upcoming_event_on_homepage": "true",
         "venmo_handle": "",
         "ui_theme": "dark",
+        "discord_oauth_client_id": "",
+        "discord_oauth_client_secret": "",
+        "google_oauth_client_id": "",
+        "google_oauth_client_secret": "",
     }
 
     @app.cli.command("seed-settings")

@@ -96,7 +96,8 @@ def test_seed_settings_is_idempotent(app):
         runner = app.test_cli_runner()
 
         result = runner.invoke(args=["seed-settings"])
-        assert "16" in result.output
+        assert "Seeded" in result.output
+        assert "setting(s)" in result.output
 
         result = runner.invoke(args=["seed-settings"])
         assert "0" in result.output

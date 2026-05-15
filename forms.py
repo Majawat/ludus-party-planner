@@ -232,6 +232,31 @@ class AdminSettingsForm(FlaskForm):
     registration_enabled = BooleanField("Registration Enabled")
     show_upcoming_event_on_homepage = BooleanField("Show Upcoming Event on Homepage")
     ui_theme = SelectField("Site Theme", choices=_THEME_CHOICES)
+    discord_oauth_client_id = StringField("Discord Client ID", validators=[Optional()])
+    discord_oauth_client_secret = StringField("Discord Client Secret", validators=[Optional()])
+    google_oauth_client_id = StringField("Google Client ID", validators=[Optional()])
+    google_oauth_client_secret = StringField("Google Client Secret", validators=[Optional()])
+
+
+class SetPasswordForm(FlaskForm):
+    password = PasswordField("Password", validators=[DataRequired(), Length(min=8)])
+    confirm_password = PasswordField(
+        "Confirm Password", validators=[DataRequired(), EqualTo("password", message="Passwords must match")]
+    )
+    submit = SubmitField("Set Password")
+
+
+class ChangePasswordForm(FlaskForm):
+    current_password = PasswordField("Current Password", validators=[DataRequired()])
+    new_password = PasswordField("New Password", validators=[DataRequired(), Length(min=8)])
+    confirm_password = PasswordField(
+        "Confirm New Password", validators=[DataRequired(), EqualTo("new_password", message="Passwords must match")]
+    )
+    submit = SubmitField("Change Password")
+
+
+class OAuthConfirmLinkForm(FlaskForm):
+    submit = SubmitField("Yes, link accounts")
 
 
 class GameSuggestionForm(FlaskForm):
