@@ -4,9 +4,18 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
+from extensions import csrf
 from forms import ChangePasswordForm, EventRegistrationForm, PotluckItemForm, SetPasswordForm
-from mailer import send_registration_confirmation_email
+from mailer import send_registration_confirmation_email, send_registration_pending_payment_email
 from models import Event, EventQuestion, LoanerEquipment, LoanerRequest, PotluckItem, Registration, RegistrationAnswer, Seat, SiteSettings, TicketType, UserPlatformAccount, db, utcnow
+from payments import (
+    capture_paypal_order,
+    create_paypal_order,
+    create_stripe_session,
+    retrieve_stripe_session,
+    verify_paypal_webhook,
+    _get_paypal_checkout_base_url,
+)
 
 account_bp = Blueprint("account", __name__)
 
@@ -193,6 +202,8 @@ def register_event(slug):
         return redirect(url_for("public.event_detail", slug=slug))
 
     has_lodging_tickets = any(t.includes_lodging for t in event.ticket_types if t.is_active)
+    stripe_enabled = SiteSettings.get("stripe_enabled") == "true"
+    paypal_enabled = SiteSettings.get("paypal_enabled") == "true"
 
     form = EventRegistrationForm()
     form.ticket_type_id.choices = [
@@ -224,7 +235,19 @@ def register_event(slug):
                         available_tickets=available_tickets,
                         questions=questions,
                         form_data=request.form,
+                        stripe_enabled=stripe_enabled,
+                        paypal_enabled=paypal_enabled,
                     )
+
+        # Determine payment path
+        is_free = (ticket.price == 0)
+        payment_choice = request.form.get("payment_choice", "later")
+        if is_free:
+            payment_choice = "later"
+        if payment_choice == "stripe" and not stripe_enabled:
+            payment_choice = "later"
+        if payment_choice == "paypal" and not paypal_enabled:
+            payment_choice = "later"
 
         registration = Registration(
             user_id=current_user.id,
@@ -237,7 +260,7 @@ def register_event(slug):
             emergency_contact_phone=form.emergency_contact_phone.data or None,
         )
         db.session.add(registration)
-        db.session.flush()  # get registration.id before creating answers
+        db.session.flush()  # get registration.id before creating answers and payment calls
 
         for q in questions:
             if q.question_type == "boolean":
@@ -256,15 +279,58 @@ def register_event(slug):
                         answer=val,
                     ))
 
-        db.session.commit()
+        if payment_choice == "stripe":
+            try:
+                # Build success_url via concatenation — url_for would percent-encode the braces
+                success_url = (
+                    url_for("account.stripe_success", _external=True)
+                    + "?session_id={CHECKOUT_SESSION_ID}"
+                )
+                cancel_url = url_for("account.register_event", slug=slug, _external=True)
+                session_id, checkout_url = create_stripe_session(
+                    registration, event, ticket, success_url, cancel_url
+                )
+                registration.stripe_session_id = session_id
+                registration.payment_processor = "stripe"
+                db.session.commit()
+                try:
+                    send_registration_pending_payment_email(registration)
+                except Exception:
+                    pass
+                return redirect(checkout_url)
+            except Exception:
+                db.session.rollback()
+                flash("Could not create Stripe checkout. Please try again or pay later.", "error")
+                return redirect(url_for("account.register_event", slug=slug))
 
-        try:
-            send_registration_confirmation_email(registration)
-        except Exception:
-            pass
+        elif payment_choice == "paypal":
+            try:
+                return_url = url_for("account.paypal_success", _external=True)
+                cancel_url = url_for("account.register_event", slug=slug, _external=True)
+                order_id, approve_url = create_paypal_order(
+                    registration, event, ticket, return_url, cancel_url
+                )
+                registration.paypal_order_id = order_id
+                registration.payment_processor = "paypal"
+                db.session.commit()
+                try:
+                    send_registration_pending_payment_email(registration)
+                except Exception:
+                    pass
+                return redirect(approve_url)
+            except Exception:
+                db.session.rollback()
+                flash("Could not create PayPal order. Please try again or pay later.", "error")
+                return redirect(url_for("account.register_event", slug=slug))
 
-        flash("You're registered! A confirmation email has been sent.", "success")
-        return redirect(url_for("account.my_registration", slug=slug))
+        else:
+            db.session.commit()
+            try:
+                send_registration_confirmation_email(registration)
+            except Exception:
+                pass
+            flash("You're registered! A confirmation email has been sent.", "success")
+            return redirect(url_for("account.my_registration", slug=slug))
 
     return render_template(
         "account/register_event.html",
@@ -274,6 +340,8 @@ def register_event(slug):
         available_tickets=available_tickets,
         questions=questions,
         form_data=None,
+        stripe_enabled=stripe_enabled,
+        paypal_enabled=paypal_enabled,
     )
 
 
@@ -298,6 +366,17 @@ def my_registration(slug):
 
     answers_by_qid = {ans.question_id: ans.answer for ans in registration.answers}
 
+    stripe_session = None
+    paypal_checkout_url = None
+    if registration.payment_status == "unpaid" and registration.status != "cancelled":
+        if registration.stripe_session_id and SiteSettings.get("stripe_enabled") == "true":
+            stripe_session = retrieve_stripe_session(registration.stripe_session_id)
+        if registration.paypal_order_id and SiteSettings.get("paypal_enabled") == "true":
+            paypal_checkout_url = (
+                _get_paypal_checkout_base_url()
+                + f"/checkoutnow?token={registration.paypal_order_id}"
+            )
+
     return render_template(
         "account/my_registration.html",
         event=event,
@@ -305,6 +384,8 @@ def my_registration(slug):
         available_equipment=available_equipment,
         questions=event.questions,
         answers_by_qid=answers_by_qid,
+        stripe_session=stripe_session,
+        paypal_checkout_url=paypal_checkout_url,
     )
 
 
@@ -386,6 +467,115 @@ def cancel_registration(slug):
 
     flash("Your registration has been cancelled.", "success")
     return redirect(url_for("account.dashboard"))
+
+
+@account_bp.route("/account/stripe/success")
+@login_required
+def stripe_success():
+    session_id = request.args.get("session_id", "")
+    stripe_session = retrieve_stripe_session(session_id)
+    if not stripe_session:
+        flash("Could not retrieve payment session.", "error")
+        return redirect(url_for("account.dashboard"))
+
+    reg_id = stripe_session.metadata.get("registration_id")
+    registration = db.session.get(Registration, int(reg_id)) if reg_id else None
+    if registration is None:
+        flash("Registration not found.", "error")
+        return redirect(url_for("account.dashboard"))
+    if registration.user_id != current_user.id:
+        abort(403)
+    if registration.payment_status == "paid":
+        return redirect(url_for("account.my_registration", slug=registration.event.slug))
+
+    if stripe_session.payment_status == "paid":
+        registration.payment_status = "paid"
+        registration.payment_method = "stripe"
+        registration.paid_at = utcnow()
+        db.session.commit()
+        flash("Payment complete! You're confirmed.", "success")
+    else:
+        flash("Payment not completed. You can try again from your registration page.", "warning")
+
+    return redirect(url_for("account.my_registration", slug=registration.event.slug))
+
+
+@account_bp.route("/account/paypal/success")
+@login_required
+def paypal_success():
+    order_id = request.args.get("token", "")
+    registration = Registration.query.filter_by(paypal_order_id=order_id).first()
+    if registration is None:
+        flash("Registration not found.", "error")
+        return redirect(url_for("account.dashboard"))
+    if registration.user_id != current_user.id:
+        abort(403)
+    if registration.payment_status == "paid":
+        return redirect(url_for("account.my_registration", slug=registration.event.slug))
+
+    if capture_paypal_order(order_id):
+        registration.payment_status = "paid"
+        registration.payment_method = "paypal"
+        registration.paid_at = utcnow()
+        db.session.commit()
+        flash("Payment complete! You're confirmed.", "success")
+    else:
+        flash("Payment capture failed. Please contact the organizer.", "error")
+
+    return redirect(url_for("account.my_registration", slug=registration.event.slug))
+
+
+@account_bp.route("/account/stripe/webhook", methods=["POST"])
+@csrf.exempt
+def stripe_webhook():
+    import stripe as stripe_lib
+    payload = request.get_data()
+    sig_header = request.headers.get("Stripe-Signature", "")
+    webhook_secret = SiteSettings.get("stripe_webhook_secret", "")
+    try:
+        event_obj = stripe_lib.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except Exception:
+        return ("", 400)
+
+    if event_obj["type"] == "checkout.session.completed":
+        session_data = event_obj["data"]["object"]
+        if session_data.get("payment_status") == "paid":
+            reg_id = session_data.get("metadata", {}).get("registration_id")
+            registration = db.session.get(Registration, int(reg_id)) if reg_id else None
+            if registration and registration.payment_status != "paid":
+                registration.payment_status = "paid"
+                registration.payment_method = "stripe"
+                registration.paid_at = utcnow()
+                db.session.commit()
+
+    return ("", 200)
+
+
+@account_bp.route("/account/paypal/webhook", methods=["POST"])
+@csrf.exempt
+def paypal_webhook():
+    import json as _json
+    raw_body = request.get_data()
+    if not verify_paypal_webhook(request.headers, raw_body):
+        return ("", 400)
+
+    try:
+        data = _json.loads(raw_body)
+    except Exception:
+        return ("", 400)
+
+    if data.get("event_type") == "CHECKOUT.ORDER.APPROVED":
+        resource = data.get("resource", {})
+        order_id = resource.get("id")
+        registration = Registration.query.filter_by(paypal_order_id=order_id).first()
+        if registration and registration.payment_status != "paid":
+            if capture_paypal_order(order_id):
+                registration.payment_status = "paid"
+                registration.payment_method = "paypal"
+                registration.paid_at = utcnow()
+                db.session.commit()
+
+    return ("", 200)
 
 
 def _get_seatable_registration(slug):
