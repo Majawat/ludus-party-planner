@@ -240,3 +240,16 @@ class GameSuggestionForm(FlaskForm):
         "Suggested Play Time", format="%Y-%m-%dT%H:%M", validators=[Optional()]
     )
     submit = SubmitField("Suggest Game")
+
+
+class EventQuestionForm(FlaskForm):
+    question_text = StringField("Question", validators=[DataRequired(), Length(max=500)])
+    question_type = SelectField(
+        "Type",
+        choices=[("text", "Text"), ("boolean", "Yes / No"), ("select", "Multiple Choice")],
+        validators=[DataRequired()],
+    )
+    is_required = BooleanField("Required")
+    display_order = IntegerField("Display Order", default=0, validators=[Optional()])
+    options = TextAreaField("Options (one per line)", validators=[Optional()])
+    submit = SubmitField("Save")

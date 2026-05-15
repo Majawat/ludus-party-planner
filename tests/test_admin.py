@@ -1,7 +1,9 @@
+import csv
+import io
 import json
 from uuid import uuid4
 
-from models import Event, Registration, Seat, SiteSettings, TicketType, User, db
+from models import Event, EventQuestion, Registration, RegistrationAnswer, Seat, SiteSettings, TicketType, User, db
 from models import utcnow
 
 
@@ -743,3 +745,294 @@ def test_phase_7_10_routes_return_200_for_admin(client, admin_user, published_ev
     for route in _phase_7_10_admin_routes(published_event, admin_user):
         r = client.get(route)
         assert r.status_code == 200, f"{route}: expected 200"
+
+
+# ---------------------------------------------------------------------------
+# Custom Question Builder
+# ---------------------------------------------------------------------------
+
+def test_questions_list_returns_200(client, admin_user, published_event):
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.get(f"/admin/events/{published_event.id}/questions")
+    assert r.status_code == 200
+
+
+def test_questions_list_unauthenticated_redirects(client, published_event):
+    r = client.get(f"/admin/events/{published_event.id}/questions")
+    assert r.status_code == 302
+    assert "/login" in r.headers["Location"]
+
+
+def test_questions_list_non_admin_returns_403(client, regular_user, published_event):
+    _login(client, "user@example.com", "userpass123")
+    r = client.get(f"/admin/events/{published_event.id}/questions")
+    assert r.status_code == 403
+
+
+def test_add_question_creates_record_with_field_name_slug(client, admin_user, published_event):
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.post(
+        f"/admin/events/{published_event.id}/questions/add",
+        data={
+            "question_text": "Dietary Restrictions",
+            "question_type": "text",
+            "display_order": "0",
+            "options": "",
+        },
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    q = EventQuestion.query.filter_by(event_id=published_event.id).first()
+    assert q is not None
+    assert q.field_name == "dietary_restrictions"
+    assert q.question_type == "text"
+    assert q.is_required is False
+
+
+def test_add_required_question(client, admin_user, published_event):
+    _login(client, "admin@example.com", "adminpass123")
+    client.post(
+        f"/admin/events/{published_event.id}/questions/add",
+        data={
+            "question_text": "T-Shirt Size",
+            "question_type": "text",
+            "is_required": "y",
+            "display_order": "0",
+        },
+        follow_redirects=True,
+    )
+    q = EventQuestion.query.filter_by(question_text="T-Shirt Size").first()
+    assert q is not None
+    assert q.is_required is True
+
+
+def test_add_select_question_stores_options_as_json(client, admin_user, published_event):
+    _login(client, "admin@example.com", "adminpass123")
+    client.post(
+        f"/admin/events/{published_event.id}/questions/add",
+        data={
+            "question_text": "Shirt Size",
+            "question_type": "select",
+            "options": "Small\nMedium\nLarge",
+            "display_order": "0",
+        },
+        follow_redirects=True,
+    )
+    q = EventQuestion.query.filter_by(question_text="Shirt Size").first()
+    assert q is not None
+    assert json.loads(q.options) == ["Small", "Medium", "Large"]
+
+
+def test_add_boolean_question(client, admin_user, published_event):
+    _login(client, "admin@example.com", "adminpass123")
+    client.post(
+        f"/admin/events/{published_event.id}/questions/add",
+        data={
+            "question_text": "Do you need parking?",
+            "question_type": "boolean",
+            "display_order": "0",
+        },
+        follow_redirects=True,
+    )
+    q = EventQuestion.query.filter_by(question_text="Do you need parking?").first()
+    assert q is not None
+    assert q.question_type == "boolean"
+    assert q.options is None
+
+
+def test_edit_question_updates_fields(client, admin_user, published_event):
+    _login(client, "admin@example.com", "adminpass123")
+    q = EventQuestion(
+        event_id=published_event.id,
+        question_text="Old Text",
+        question_type="text",
+        field_name="old_text",
+        is_required=False,
+        display_order=0,
+    )
+    db.session.add(q)
+    db.session.commit()
+    qid = q.id
+
+    client.post(
+        f"/admin/events/{published_event.id}/questions/{qid}/edit",
+        data={
+            "question_text": "New Text",
+            "question_type": "text",
+            "is_required": "y",
+            "display_order": "5",
+            "options": "",
+        },
+        follow_redirects=True,
+    )
+    db.session.expire_all()
+    updated = db.session.get(EventQuestion, qid)
+    assert updated.question_text == "New Text"
+    assert updated.is_required is True
+    assert updated.display_order == 5
+
+
+def test_delete_question_without_answers_succeeds(client, admin_user, published_event):
+    _login(client, "admin@example.com", "adminpass123")
+    q = EventQuestion(
+        event_id=published_event.id,
+        question_text="Delete Me",
+        question_type="text",
+        field_name="delete_me",
+        is_required=False,
+        display_order=0,
+    )
+    db.session.add(q)
+    db.session.commit()
+    qid = q.id
+
+    r = client.post(
+        f"/admin/events/{published_event.id}/questions/{qid}/delete",
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert db.session.get(EventQuestion, qid) is None
+
+
+def test_delete_question_with_answers_is_blocked(client, admin_user, regular_user, published_event, ticket_type):
+    _login(client, "admin@example.com", "adminpass123")
+    q = EventQuestion(
+        event_id=published_event.id,
+        question_text="Has Answers",
+        question_type="text",
+        field_name="has_answers",
+        is_required=False,
+        display_order=0,
+    )
+    db.session.add(q)
+    db.session.flush()
+
+    reg = Registration(
+        user_id=regular_user.id,
+        event_id=published_event.id,
+        ticket_type_id=ticket_type.id,
+        status="confirmed",
+        payment_status="unpaid",
+        checkin_code=str(uuid4()),
+    )
+    db.session.add(reg)
+    db.session.flush()
+
+    ans = RegistrationAnswer(registration_id=reg.id, question_id=q.id, answer="some answer")
+    db.session.add(ans)
+    db.session.commit()
+    qid = q.id
+
+    r = client.post(
+        f"/admin/events/{published_event.id}/questions/{qid}/delete",
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert db.session.get(EventQuestion, qid) is not None
+    assert b"Cannot delete" in r.data
+
+
+def test_csv_export_includes_question_columns(client, admin_user, regular_user, published_event, ticket_type):
+    _login(client, "admin@example.com", "adminpass123")
+
+    q = EventQuestion(
+        event_id=published_event.id,
+        question_text="Favourite Snack",
+        question_type="text",
+        field_name="favourite_snack",
+        is_required=False,
+        display_order=0,
+    )
+    db.session.add(q)
+    db.session.flush()
+
+    reg = Registration(
+        user_id=regular_user.id,
+        event_id=published_event.id,
+        ticket_type_id=ticket_type.id,
+        status="confirmed",
+        payment_status="unpaid",
+        checkin_code=str(uuid4()),
+    )
+    db.session.add(reg)
+    db.session.flush()
+
+    ans = RegistrationAnswer(registration_id=reg.id, question_id=q.id, answer="Chips")
+    db.session.add(ans)
+    db.session.commit()
+
+    r = client.get(f"/admin/events/{published_event.id}/registrations/export.csv")
+    assert r.status_code == 200
+    content = r.data.decode("utf-8")
+    reader = csv.reader(io.StringIO(content))
+    rows = list(reader)
+    assert rows[0][-1] == "Favourite Snack"
+    assert rows[1][-1] == "Chips"
+
+
+def test_csv_export_empty_answer_is_empty_string(client, admin_user, regular_user, published_event, ticket_type):
+    _login(client, "admin@example.com", "adminpass123")
+
+    q = EventQuestion(
+        event_id=published_event.id,
+        question_text="Optional Question",
+        question_type="text",
+        field_name="optional_question",
+        is_required=False,
+        display_order=0,
+    )
+    db.session.add(q)
+    db.session.flush()
+
+    reg = Registration(
+        user_id=regular_user.id,
+        event_id=published_event.id,
+        ticket_type_id=ticket_type.id,
+        status="confirmed",
+        payment_status="unpaid",
+        checkin_code=str(uuid4()),
+    )
+    db.session.add(reg)
+    db.session.commit()
+
+    r = client.get(f"/admin/events/{published_event.id}/registrations/export.csv")
+    assert r.status_code == 200
+    content = r.data.decode("utf-8")
+    reader = csv.reader(io.StringIO(content))
+    rows = list(reader)
+    assert rows[1][-1] == ""
+
+
+def test_admin_registration_detail_shows_qa(client, admin_user, regular_user, published_event, ticket_type):
+    _login(client, "admin@example.com", "adminpass123")
+
+    q = EventQuestion(
+        event_id=published_event.id,
+        question_text="Favourite Game",
+        question_type="text",
+        field_name="favourite_game",
+        is_required=False,
+        display_order=0,
+    )
+    db.session.add(q)
+    db.session.flush()
+
+    reg = Registration(
+        user_id=regular_user.id,
+        event_id=published_event.id,
+        ticket_type_id=ticket_type.id,
+        status="confirmed",
+        payment_status="unpaid",
+        checkin_code=str(uuid4()),
+    )
+    db.session.add(reg)
+    db.session.flush()
+
+    ans = RegistrationAnswer(registration_id=reg.id, question_id=q.id, answer="Chess")
+    db.session.add(ans)
+    db.session.commit()
+
+    r = client.get(f"/admin/events/{published_event.id}/registrations/{reg.id}")
+    assert r.status_code == 200
+    assert b"Favourite Game" in r.data
+    assert b"Chess" in r.data

@@ -121,6 +121,17 @@
       </div>
     </a>
 
+    <a href="{{ url_for('admin.questions_list', id=event.id) }}"
+       class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
+      <div class="card-body">
+        <div class="flex items-center justify-between">
+          <h2 class="card-title">Custom Questions</h2>
+          <span class="badge badge-primary">{{ event.questions | length }}</span>
+        </div>
+        <p class="text-base-content/70 text-sm">Add questions to the registration form.</p>
+      </div>
+    </a>
+
     <a href="{{ url_for('admin.loaners_list', id=event.id) }}"
        class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
       <div class="card-body">
