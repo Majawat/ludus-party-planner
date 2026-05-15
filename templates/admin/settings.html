@@ -178,6 +178,65 @@
       </div>
     </div>
 
+    {# --- Payment Processors --- #}
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-2">Payment Processors</h2>
+        <div class="alert alert-warning mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+          <span>Secret keys are stored in the database. For production security, consider using environment variables instead.</span>
+        </div>
+
+        <h3 class="font-semibold mb-3">Stripe</h3>
+        <div class="form-control mb-4">
+          <label class="label cursor-pointer justify-start gap-3">
+            {{ form.stripe_enabled(class="checkbox") }}
+            <span class="label-text font-semibold">{{ form.stripe_enabled.label.text }}</span>
+          </label>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div class="form-control">
+            {{ form.stripe_publishable_key.label(class="label label-text font-semibold") }}
+            {{ form.stripe_publishable_key(class="input input-bordered w-full", placeholder="pk_…") }}
+          </div>
+          <div class="form-control">
+            {{ form.stripe_secret_key.label(class="label label-text font-semibold") }}
+            {{ form.stripe_secret_key(class="input input-bordered w-full", type="password", placeholder="sk_…") }}
+          </div>
+          <div class="form-control">
+            {{ form.stripe_webhook_secret.label(class="label label-text font-semibold") }}
+            {{ form.stripe_webhook_secret(class="input input-bordered w-full", type="password", placeholder="whsec_…") }}
+          </div>
+        </div>
+
+        <h3 class="font-semibold mb-3">PayPal</h3>
+        <div class="form-control mb-4">
+          <label class="label cursor-pointer justify-start gap-3">
+            {{ form.paypal_enabled(class="checkbox") }}
+            <span class="label-text font-semibold">{{ form.paypal_enabled.label.text }}</span>
+          </label>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="form-control">
+            {{ form.paypal_client_id.label(class="label label-text font-semibold") }}
+            {{ form.paypal_client_id(class="input input-bordered w-full") }}
+          </div>
+          <div class="form-control">
+            {{ form.paypal_client_secret.label(class="label label-text font-semibold") }}
+            {{ form.paypal_client_secret(class="input input-bordered w-full", type="password") }}
+          </div>
+          <div class="form-control">
+            {{ form.paypal_mode.label(class="label label-text font-semibold") }}
+            {{ form.paypal_mode(class="select select-bordered w-full") }}
+          </div>
+          <div class="form-control">
+            {{ form.paypal_webhook_id.label(class="label label-text font-semibold") }}
+            {{ form.paypal_webhook_id(class="input input-bordered w-full") }}
+          </div>
+        </div>
+      </div>
+    </div>
+
     {# --- Legal --- #}
     <div class="card bg-base-200 shadow mb-6">
       <div class="card-body">

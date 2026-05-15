@@ -238,6 +238,15 @@ class AdminSettingsForm(FlaskForm):
     google_oauth_client_secret = StringField("Google Client Secret", validators=[Optional()])
     steam_enabled = BooleanField("Enable Steam Login")
     steam_api_key = StringField("Steam API Key", validators=[Optional()])
+    stripe_enabled = BooleanField("Enable Stripe Payments")
+    stripe_publishable_key = StringField("Stripe Publishable Key", validators=[Optional()])
+    stripe_secret_key = StringField("Stripe Secret Key", validators=[Optional()])
+    stripe_webhook_secret = StringField("Stripe Webhook Secret", validators=[Optional()])
+    paypal_enabled = BooleanField("Enable PayPal Payments")
+    paypal_client_id = StringField("PayPal Client ID", validators=[Optional()])
+    paypal_client_secret = StringField("PayPal Client Secret", validators=[Optional()])
+    paypal_mode = SelectField("PayPal Mode", choices=[("sandbox", "Sandbox"), ("live", "Live")])
+    paypal_webhook_id = StringField("PayPal Webhook ID", validators=[Optional()])
 
 
 class SetPasswordForm(FlaskForm):
