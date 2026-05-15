@@ -131,6 +131,8 @@ def create_app(test_config=None):
         "discord_oauth_client_secret": "",
         "google_oauth_client_id": "",
         "google_oauth_client_secret": "",
+        "steam_enabled": "false",
+        "steam_api_key": "",
     }
 
     @app.cli.command("seed-settings")

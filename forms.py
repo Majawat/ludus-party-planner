@@ -236,6 +236,8 @@ class AdminSettingsForm(FlaskForm):
     discord_oauth_client_secret = StringField("Discord Client Secret", validators=[Optional()])
     google_oauth_client_id = StringField("Google Client ID", validators=[Optional()])
     google_oauth_client_secret = StringField("Google Client Secret", validators=[Optional()])
+    steam_enabled = BooleanField("Enable Steam Login")
+    steam_api_key = StringField("Steam API Key", validators=[Optional()])
 
 
 class SetPasswordForm(FlaskForm):
@@ -257,6 +259,17 @@ class ChangePasswordForm(FlaskForm):
 
 class OAuthConfirmLinkForm(FlaskForm):
     submit = SubmitField("Yes, link accounts")
+
+
+class SteamCompleteRegistrationForm(FlaskForm):
+    name = StringField("Name", validators=[DataRequired(), Length(max=120)])
+    email = StringField("Email", validators=[DataRequired(), Email()])
+    password = PasswordField("Password", validators=[DataRequired(), Length(min=8)])
+    confirm_password = PasswordField(
+        "Confirm Password",
+        validators=[DataRequired(), EqualTo("password", message="Passwords must match")],
+    )
+    submit = SubmitField("Create Account")
 
 
 class GameSuggestionForm(FlaskForm):

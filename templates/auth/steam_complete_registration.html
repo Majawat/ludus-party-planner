@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Complete Registration — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+  <h1 class="text-3xl font-bold mb-2">One more step</h1>
+  <p class="text-base-content/70 mb-6">
+    Steam doesn't share your email address. Please provide one to complete your
+    {{ site_name }} account.
+  </p>
+
+  <form method="POST" action="{{ url_for('auth.steam_complete_registration') }}" class="space-y-4">
+    {{ form.hidden_tag() }}
+
+    <div class="form-control">
+      {{ form.name.label(class="label label-text") }}
+      {{ form.name(class="input input-bordered w-full", placeholder="Your name") }}
+      {% for error in form.name.errors %}
+        <p class="text-error text-sm mt-1">{{ error }}</p>
+      {% endfor %}
+    </div>
+
+    <div class="form-control">
+      {{ form.email.label(class="label label-text") }}
+      {{ form.email(class="input input-bordered w-full", placeholder="you@example.com") }}
+      {% for error in form.email.errors %}
+        <p class="text-error text-sm mt-1">{{ error }}</p>
+      {% endfor %}
+    </div>
+
+    <div class="form-control">
+      {{ form.password.label(class="label label-text") }}
+      {{ form.password(class="input input-bordered w-full") }}
+      <label class="label"><span class="label-text-alt">Minimum 8 characters. Used to log in with email and password.</span></label>
+      {% for error in form.password.errors %}
+        <p class="text-error text-sm mt-1">{{ error }}</p>
+      {% endfor %}
+    </div>
+
+    <div class="form-control">
+      {{ form.confirm_password.label(class="label label-text") }}
+      {{ form.confirm_password(class="input input-bordered w-full") }}
+      {% for error in form.confirm_password.errors %}
+        <p class="text-error text-sm mt-1">{{ error }}</p>
+      {% endfor %}
+    </div>
+
+    <button type="submit" class="btn btn-primary w-full">{{ form.submit.label.text }}</button>
+  </form>
+
+  <p class="mt-4 text-center text-sm">
+    <a href="{{ url_for('auth.login') }}" class="link">Back to login</a>
+  </p>
+</div>
+{% endblock %}

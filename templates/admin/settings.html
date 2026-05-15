@@ -155,6 +155,29 @@
       </div>
     </div>
 
+    {# --- Steam --- #}
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-2">Steam</h2>
+        <p class="text-sm text-base-content/70 mb-4">
+          Steam uses OpenID 2.0. No client secret is required. A Steam Web API key is optional
+          — if provided, Steam usernames are fetched and stored when accounts are linked.
+        </p>
+        <div class="form-control mb-4">
+          <label class="label cursor-pointer justify-start gap-3">
+            {{ form.steam_enabled(class="checkbox") }}
+            <span class="label-text font-semibold">{{ form.steam_enabled.label.text }}</span>
+          </label>
+          <label class="label"><span class="label-text-alt">Shows "Login with Steam" on login and register pages.</span></label>
+        </div>
+        <div class="form-control">
+          {{ form.steam_api_key.label(class="label label-text font-semibold") }}
+          {{ form.steam_api_key(class="input input-bordered w-full", placeholder="Optional") }}
+          <label class="label"><span class="label-text-alt">If blank, Steam accounts display as "Steam User".</span></label>
+        </div>
+      </div>
+    </div>
+
     {# --- Legal --- #}
     <div class="card bg-base-200 shadow mb-6">
       <div class="card-body">

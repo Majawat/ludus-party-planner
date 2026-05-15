@@ -19,7 +19,7 @@ from models import (
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
-_BOOL_SETTINGS = {"registration_enabled", "show_upcoming_event_on_homepage"}
+_BOOL_SETTINGS = {"registration_enabled", "show_upcoming_event_on_homepage", "steam_enabled"}
 
 
 @admin_bp.before_request
