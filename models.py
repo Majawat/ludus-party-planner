@@ -291,6 +291,9 @@ class Registration(db.Model):
     emergency_contact_phone = db.Column(db.Text, nullable=True)
     terms_accepted_at = db.Column(db.DateTime, nullable=True)
     admin_notes = db.Column(db.Text, nullable=True)
+    stripe_session_id = db.Column(db.Text, nullable=True)
+    paypal_order_id = db.Column(db.Text, nullable=True)
+    payment_processor = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
