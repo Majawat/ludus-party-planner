@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, abort
 from flask_login import current_user
 from sqlalchemy import select
 
-from models import db, Event, Registration, SiteSettings, utcnow
+from models import db, Event, EventAnnouncement, EventScheduleItem, PotluckItem, Registration, SiteSettings, utcnow
 
 public_bp = Blueprint("public", __name__)
 
@@ -56,10 +56,45 @@ def event_detail(slug):
         and event.is_upcoming
     )
 
+    schedule_items = (
+        db.session.execute(
+            db.select(EventScheduleItem)
+            .where(EventScheduleItem.event_id == event.id)
+            .order_by(EventScheduleItem.starts_at)
+        )
+        .scalars()
+        .all()
+    )
+
+    potluck_items = (
+        db.session.execute(
+            db.select(PotluckItem)
+            .where(PotluckItem.event_id == event.id)
+            .join(PotluckItem.registration)
+            .where(Registration.status != "cancelled")
+            .order_by(PotluckItem.created_at)
+        )
+        .scalars()
+        .all()
+    )
+
+    announcements = (
+        db.session.execute(
+            db.select(EventAnnouncement)
+            .where(EventAnnouncement.event_id == event.id)
+            .order_by(EventAnnouncement.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+
     return render_template(
         "public/event_detail.html",
         event=event,
         attendees=attendees,
         user_registration=user_registration,
         registration_is_open=registration_is_open,
+        schedule_items=schedule_items,
+        potluck_items=potluck_items,
+        announcements=announcements,
     )

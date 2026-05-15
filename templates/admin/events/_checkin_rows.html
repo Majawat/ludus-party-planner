@@ -1,0 +1,9 @@
+{% if registrations %}
+<div class="space-y-3">
+  {% for reg in registrations %}
+    {% include "admin/events/_checkin_row.html" %}
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-center text-base-content/50 py-8">No matching attendees found.</p>
+{% endif %}

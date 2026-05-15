@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Setup — Ludus Party Planner{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { plugins: [] }</script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.23/dist/full.min.css" rel="stylesheet" />
+</head>
+<body class="min-h-screen flex items-center justify-center bg-base-200">
+  <div class="w-full max-w-lg px-4 py-12">
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-bold">Ludus Party Planner</h1>
+      <p class="text-base-content/60 mt-1">First-time setup</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="space-y-2 mb-4">
+          {% for category, message in messages %}
+            {% set alert_class = {'success': 'alert-success', 'error': 'alert-error', 'warning': 'alert-warning'}.get(category, 'alert-info') %}
+            <div class="alert {{ alert_class }}"><span>{{ message }}</span></div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>

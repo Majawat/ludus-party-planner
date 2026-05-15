@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from app import create_app
-from models import User, Event, Registration, Seat, TicketType, db as _db, utcnow
+from models import User, Event, Registration, Seat, TicketType, SiteSettings, db as _db, utcnow
 
 
 @pytest.fixture()
@@ -19,6 +19,17 @@ def app():
     })
     with app.app_context():
         _db.create_all()
+        # Satisfy the setup guard: every test DB starts with a completed setup state.
+        _db.session.add(SiteSettings(key="setup_complete", value="true"))
+        setup_admin = User(
+            name="Setup Admin",
+            email="setup@test.invalid",
+            is_admin=True,
+            email_verified_at=utcnow(),
+        )
+        setup_admin.set_password("irrelevant")
+        _db.session.add(setup_admin)
+        _db.session.commit()
         yield app
         _db.drop_all()
 

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Loaner Requests — {{ event.name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+
+  <div class="breadcrumbs text-sm mb-6">
+    <ul>
+      <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+      <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+      <li>Loaner Requests</li>
+    </ul>
+  </div>
+
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-bold">Loaner Requests</h1>
+    <a href="{{ url_for('admin.equipment_list') }}" class="btn btn-ghost btn-sm">Manage Equipment</a>
+  </div>
+
+  {% if requests %}
+  <div class="overflow-x-auto">
+    <table class="table table-zebra w-full">
+      <thead>
+        <tr>
+          <th>Attendee</th>
+          <th>Equipment</th>
+          <th>Status</th>
+          <th>Requested</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for req in requests %}
+        <tr>
+          <td>
+            <div class="font-semibold">{{ req.registration.user.name }}</div>
+            <div class="text-sm text-base-content/60">{{ req.registration.user.email }}</div>
+          </td>
+          <td>
+            {% if req.equipment %}
+              <div class="font-semibold">{{ req.equipment.name }}</div>
+              {% if req.equipment.specs %}
+                <div class="text-sm text-base-content/60">{{ req.equipment.specs }}</div>
+              {% endif %}
+            {% else %}
+              <span class="text-base-content/50 italic">No preference</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if req.status == 'approved' %}
+              <span class="badge badge-success">Approved</span>
+            {% elif req.status == 'denied' %}
+              <span class="badge badge-error">Denied</span>
+            {% else %}
+              <span class="badge badge-warning">Requested</span>
+            {% endif %}
+          </td>
+          <td class="text-sm text-base-content/60">{{ req.created_at.strftime('%b %-d, %Y') }}</td>
+          <td>
+            <div class="flex gap-2">
+              {% if req.status != 'approved' %}
+              <form method="POST" action="{{ url_for('admin.loaner_approve', id=event.id, req_id=req.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <button type="submit" class="btn btn-success btn-xs">Approve</button>
+              </form>
+              {% endif %}
+              {% if req.status != 'denied' %}
+              <form method="POST" action="{{ url_for('admin.loaner_deny', id=event.id, req_id=req.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <button type="submit" class="btn btn-error btn-xs">Deny</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center text-base-content/50 py-16">
+    <p>No loaner requests for this event yet.</p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

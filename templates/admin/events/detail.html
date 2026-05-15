@@ -110,6 +110,38 @@
     </a>
     {% endif %}
 
+    <a href="{{ url_for('admin.schedule_list', id=event.id) }}"
+       class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
+      <div class="card-body">
+        <div class="flex items-center justify-between">
+          <h2 class="card-title">Schedule</h2>
+          <span class="badge badge-primary">{{ event.schedule_items | length }}</span>
+        </div>
+        <p class="text-base-content/70 text-sm">Manage the event timetable.</p>
+      </div>
+    </a>
+
+    <a href="{{ url_for('admin.loaners_list', id=event.id) }}"
+       class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
+      <div class="card-body">
+        <div class="flex items-center justify-between">
+          <h2 class="card-title">Loaner Requests</h2>
+          <span class="badge badge-primary">
+            {{ event.registrations | selectattr('needs_loaner') | rejectattr('status', 'equalto', 'cancelled') | list | length }}
+          </span>
+        </div>
+        <p class="text-base-content/70 text-sm">View and approve equipment borrowing requests.</p>
+      </div>
+    </a>
+
+    <a href="{{ url_for('admin.checkin_mode', id=event.id) }}"
+       class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
+      <div class="card-body">
+        <h2 class="card-title">Check-in Mode</h2>
+        <p class="text-base-content/70 text-sm">Tablet-friendly check-in view for the door.</p>
+      </div>
+    </a>
+
     {% if event.status == 'published' %}
     <a href="{{ url_for('public.event_detail', slug=event.slug) }}" target="_blank"
        class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
@@ -127,6 +159,53 @@
     </div>
     {% endif %}
 
+  </div>
+
+  <!-- Announcements -->
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title text-lg mb-4">Announcements</h2>
+
+      <!-- Add announcement form -->
+      <form method="POST" action="{{ url_for('admin.announcement_add', id=event.id) }}" class="mb-6">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <div class="form-control mb-2">
+          <input type="text" name="title" placeholder="Announcement title" class="input input-bordered w-full" required maxlength="200" />
+        </div>
+        <div class="form-control mb-3">
+          <textarea name="body" rows="3" placeholder="Announcement body…" class="textarea textarea-bordered w-full" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Post Announcement</button>
+      </form>
+
+      <!-- Existing announcements -->
+      {% set sorted_announcements = event.announcements | sort(attribute='created_at', reverse=True) %}
+      {% if sorted_announcements %}
+        <div class="space-y-3">
+          {% for ann in sorted_announcements %}
+          <div class="border border-base-300 rounded-box p-4">
+            <div class="flex items-start justify-between gap-4">
+              <div class="flex-1">
+                <div class="font-semibold">{{ ann.title }}</div>
+                <div class="text-sm text-base-content/70 mt-1 whitespace-pre-wrap">{{ ann.body }}</div>
+                <div class="text-xs text-base-content/40 mt-2">
+                  Posted {{ ann.created_at.strftime('%b %-d, %Y at %-I:%M %p') }}
+                  by {{ ann.author.name }}
+                </div>
+              </div>
+              <form method="POST" action="{{ url_for('admin.announcement_delete', id=event.id, ann_id=ann.id) }}"
+                    onsubmit="return confirm('Delete this announcement?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <button type="submit" class="btn btn-ghost btn-xs text-error">Delete</button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-base-content/50 text-sm">No announcements yet.</p>
+      {% endif %}
+    </div>
   </div>
 
   <!-- Clone event -->

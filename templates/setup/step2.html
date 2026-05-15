@@ -1,0 +1,47 @@
+{% extends "setup/base.html" %}
+{% block title %}Site Settings — Setup{% endblock %}
+
+{% block content %}
+<div class="steps steps-horizontal w-full mb-8 text-sm">
+  <div class="step step-primary">Admin Account</div>
+  <div class="step step-primary">Site Settings</div>
+  <div class="step">Done</div>
+</div>
+
+<div class="card bg-base-100 shadow-xl">
+  <div class="card-body">
+    <h2 class="card-title text-xl mb-4">Configure your site</h2>
+    <form method="POST" action="{{ url_for('setup.step2') }}" novalidate>
+      {{ form.hidden_tag() }}
+
+      <div class="form-control mb-3">
+        {{ form.site_name.label(class="label label-text font-semibold") }}
+        {{ form.site_name(class="input input-bordered w-full" + (" input-error" if form.site_name.errors else ""), placeholder="Ludus Party Planner") }}
+        {% for error in form.site_name.errors %}
+          <span class="label-text-alt text-error">{{ error }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="form-control mb-3">
+        {{ form.site_tagline.label(class="label label-text font-semibold") }}
+        {{ form.site_tagline(class="input input-bordered w-full", placeholder="Board Games & LAN Parties") }}
+      </div>
+
+      <div class="form-control mb-3">
+        {{ form.contact_email.label(class="label label-text font-semibold") }}
+        {{ form.contact_email(class="input input-bordered w-full", placeholder="organizer@example.com") }}
+        {% for error in form.contact_email.errors %}
+          <span class="label-text-alt text-error">{{ error }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="form-control mb-6">
+        {{ form.ui_theme.label(class="label label-text font-semibold") }}
+        {{ form.ui_theme(class="select select-bordered w-full") }}
+      </div>
+
+      <button type="submit" class="btn btn-primary w-full">Save &amp; Continue &rarr;</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

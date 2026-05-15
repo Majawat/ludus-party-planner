@@ -1,0 +1,21 @@
+<tr id="schedule-item-{{ item.id }}">
+  <td class="text-sm whitespace-nowrap">
+    {{ item.starts_at.strftime('%-m/%-d %-I:%M %p') }}
+    {% if item.ends_at %}
+      &ndash; {{ item.ends_at.strftime('%-I:%M %p') }}
+    {% endif %}
+  </td>
+  <td class="font-semibold">{{ item.title }}</td>
+  <td class="text-sm text-base-content/70">{{ item.description or "" }}</td>
+  <td>
+    <form method="POST"
+          action="{{ url_for('admin.schedule_delete', id=event.id, item_id=item.id) }}"
+          hx-post="{{ url_for('admin.schedule_delete', id=event.id, item_id=item.id) }}"
+          hx-target="#schedule-item-{{ item.id }}"
+          hx-swap="outerHTML"
+          onsubmit="return confirm('Delete this item?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <button type="submit" class="btn btn-ghost btn-xs text-error">Delete</button>
+    </form>
+  </td>
+</tr>

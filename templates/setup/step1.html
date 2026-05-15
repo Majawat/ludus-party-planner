@@ -1,0 +1,53 @@
+{% extends "setup/base.html" %}
+{% block title %}Create Admin Account — Setup{% endblock %}
+
+{% block content %}
+<div class="steps steps-horizontal w-full mb-8 text-sm">
+  <div class="step step-primary">Admin Account</div>
+  <div class="step">Site Settings</div>
+  <div class="step">Done</div>
+</div>
+
+<div class="card bg-base-100 shadow-xl">
+  <div class="card-body">
+    <h2 class="card-title text-xl mb-4">Create your admin account</h2>
+    <form method="POST" action="{{ url_for('setup.step1') }}" novalidate>
+      {{ form.hidden_tag() }}
+
+      <div class="form-control mb-3">
+        {{ form.name.label(class="label label-text font-semibold") }}
+        {{ form.name(class="input input-bordered w-full" + (" input-error" if form.name.errors else ""), placeholder="Your name") }}
+        {% for error in form.name.errors %}
+          <span class="label-text-alt text-error">{{ error }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="form-control mb-3">
+        {{ form.email.label(class="label label-text font-semibold") }}
+        {{ form.email(class="input input-bordered w-full" + (" input-error" if form.email.errors else ""), placeholder="admin@example.com") }}
+        {% for error in form.email.errors %}
+          <span class="label-text-alt text-error">{{ error }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="form-control mb-3">
+        {{ form.password.label(class="label label-text font-semibold") }}
+        {{ form.password(class="input input-bordered w-full" + (" input-error" if form.password.errors else "")) }}
+        {% for error in form.password.errors %}
+          <span class="label-text-alt text-error">{{ error }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="form-control mb-6">
+        {{ form.confirm_password.label(class="label label-text font-semibold") }}
+        {{ form.confirm_password(class="input input-bordered w-full" + (" input-error" if form.confirm_password.errors else "")) }}
+        {% for error in form.confirm_password.errors %}
+          <span class="label-text-alt text-error">{{ error }}</span>
+        {% endfor %}
+      </div>
+
+      <button type="submit" class="btn btn-primary w-full">Create Admin Account &rarr;</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
