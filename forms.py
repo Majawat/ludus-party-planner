@@ -245,7 +245,7 @@ class AdminSettingsForm(FlaskForm):
     paypal_enabled = BooleanField("Enable PayPal Payments")
     paypal_client_id = StringField("PayPal Client ID", validators=[Optional()])
     paypal_client_secret = StringField("PayPal Client Secret", validators=[Optional()])
-    paypal_mode = SelectField("PayPal Mode", choices=[("sandbox", "Sandbox"), ("live", "Live")])
+    paypal_mode = SelectField("PayPal Mode", choices=[("sandbox", "Sandbox"), ("live", "Live")], validate_choice=False)
     paypal_webhook_id = StringField("PayPal Webhook ID", validators=[Optional()])
 
 
