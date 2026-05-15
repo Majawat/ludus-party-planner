@@ -1,5 +1,6 @@
 """Tests for Steam OpenID login and account management."""
 from unittest.mock import MagicMock, patch
+from urllib.parse import urlparse
 
 import pytest
 
@@ -94,7 +95,7 @@ class TestSteamLogin:
         with patch("routes.auth.Consumer", mock_consumer):
             resp = client.get("/auth/steam/login")
         assert resp.status_code == 302
-        assert "steamcommunity.com" in resp.headers["Location"]
+        assert urlparse(resp.headers["Location"]).netloc == "steamcommunity.com"
 
 
 # ---------------------------------------------------------------------------

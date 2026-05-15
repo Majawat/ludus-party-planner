@@ -1,6 +1,7 @@
 import requests
 from openid.consumer.consumer import Consumer, SUCCESS
 from openid.store.memstore import MemoryStore
+from urllib.parse import urlparse
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
@@ -102,8 +103,11 @@ def login():
         if user and user.check_password(form.password.data):
             login_user(user, remember=form.remember_me.data)
             next_page = request.args.get("next")
-            if next_page and next_page.startswith("/"):
-                return redirect(next_page)
+            if next_page:
+                next_page = next_page.replace("\\", "")
+                parsed = urlparse(next_page)
+                if not parsed.netloc and not parsed.scheme:
+                    return redirect(next_page)
             return redirect(url_for("account.dashboard"))
         flash("Invalid email or password.", "error")
         return redirect(url_for("auth.login"))

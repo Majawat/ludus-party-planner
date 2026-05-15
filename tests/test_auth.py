@@ -1,5 +1,6 @@
 import secrets
 from datetime import timedelta
+from urllib.parse import urlparse
 
 from models import EmailVerificationToken, PasswordResetToken, User, _hash_token, db, utcnow
 
@@ -18,6 +19,57 @@ def test_verified_user_can_login(client, regular_user):
     )
     assert response.status_code == 302
     assert "/dashboard" in response.headers["Location"]
+
+
+def test_login_next_param_double_slash_blocked(client, regular_user):
+    resp = client.post(
+        "/login?next=//evil.com",
+        data={"email": "user@example.com", "password": "userpass123"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert "evil.com" not in resp.headers["Location"]
+
+
+def test_login_next_param_backslash_blocked(client, regular_user):
+    resp = client.post(
+        "/login?next=\\evil.com",
+        data={"email": "user@example.com", "password": "userpass123"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    # Backslash is stripped; "evil.com" becomes a relative path — confirm netloc is not evil.com
+    assert urlparse(resp.headers["Location"]).netloc != "evil.com"
+
+
+def test_login_next_param_double_slash_with_path_blocked(client, regular_user):
+    resp = client.post(
+        "/login?next=//evil.com/path",
+        data={"email": "user@example.com", "password": "userpass123"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert "evil.com" not in resp.headers["Location"]
+
+
+def test_login_next_param_relative_path_allowed(client, regular_user):
+    resp = client.post(
+        "/login?next=/dashboard",
+        data={"email": "user@example.com", "password": "userpass123"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith("/dashboard")
+
+
+def test_login_next_param_relative_path_with_slug_allowed(client, regular_user):
+    resp = client.post(
+        "/login?next=/events/my-event",
+        data={"email": "user@example.com", "password": "userpass123"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith("/events/my-event")
 
 
 def test_wrong_password_rejected(client, regular_user):
