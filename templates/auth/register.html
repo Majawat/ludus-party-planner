@@ -63,5 +63,12 @@
     {% endfor %}
   </div>
   {% endif %}
+
+  {% if steam_enabled %}
+  <div class="divider {% if oauth_providers %}{% else %}mt-6{% endif %} text-xs">Gaming Platforms</div>
+  <a href="{{ url_for('auth.steam_login') }}" class="btn btn-outline w-full">
+    Sign up with Steam
+  </a>
+  {% endif %}
 </div>
 {% endblock %}

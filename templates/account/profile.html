@@ -83,9 +83,9 @@
   <div class="card bg-base-200 shadow mb-6">
     <div class="card-body">
       <h2 class="card-title text-lg mb-4">Connected Accounts</h2>
-      {% if not configured_providers %}
+      {% if not configured_providers and not steam_enabled %}
         <p class="text-sm text-base-content/70">
-          No OAuth providers are configured. An admin can enable them in Site Settings.
+          No login providers are configured. An admin can enable them in Site Settings.
         </p>
       {% else %}
         <div class="space-y-3">
@@ -116,6 +116,34 @@
               </div>
             </div>
           {% endfor %}
+
+          {% if steam_enabled %}
+            {% set steam_account = connected.get('steam') %}
+            <div class="flex items-center justify-between p-3 bg-base-100 rounded-lg">
+              <div>
+                <span class="font-semibold">Steam</span>
+                {% if steam_account %}
+                  <span class="text-sm text-base-content/70 ml-2">{{ steam_account.username }}</span>
+                  <span class="badge badge-success badge-sm ml-2">Connected</span>
+                {% else %}
+                  <span class="badge badge-ghost badge-sm ml-2">Not connected</span>
+                {% endif %}
+              </div>
+              <div>
+                {% if steam_account %}
+                  <form method="POST" action="{{ url_for('account.disconnect_steam') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-error btn-outline">Disconnect</button>
+                  </form>
+                {% else %}
+                  <form method="POST" action="{{ url_for('account.connect_steam') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-outline">Connect Steam</button>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
         </div>
       {% endif %}
     </div>

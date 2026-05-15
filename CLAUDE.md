@@ -581,10 +581,10 @@ Phases 7–10 = **v1.0 complete** (full feature set for launch)
 - Loaner requests aggregated view
 
 ## v1.2 Roadmap
-- Game suggestions + upvoting
+- Game suggestions + upvoting  ✓ DONE
 - Visual seat map (replaces numbered list at same URL)
-- Custom question builder for registration forms
-- Steam OAuth login
+- Custom question builder for registration forms  ✓ DONE
+- Steam OpenID login  ✓ DONE
 - PayPal payment integration
 - Coupon codes
 
@@ -656,6 +656,15 @@ Always store hashed. Never store raw tokens in the database.
 **checkin_code**
 UUID generated at registration time. Used as a future QR code payload.
 The scanner UI is v1.3 — the field is populated now.
+
+**Steam uses OpenID 2.0, not OAuth 2.0**
+Steam login uses `python3-openid` (not Authlib). `steam_enabled` and `steam_api_key`
+live in `site_settings`. Because Steam never returns an email address, new Steam users
+without an existing account must provide their email via
+`/auth/steam/complete-registration`. The `steam_api_key` is optional — if omitted,
+linked Steam accounts display as "Steam User". Routes: `/auth/steam/login`,
+`/auth/steam/callback`, `/auth/steam/complete-registration`, `/account/connect/steam`,
+`/account/disconnect/steam`.
 
 ---
 
@@ -975,7 +984,7 @@ The following are explicitly out of scope. Do not implement, do not suggest:
 - Intranet / live event mode
 - Audit logging
 - Multi-tenant / multi-organization support
-- OAuth login (Steam etc.) — deferred to v1.2
+- Additional OAuth/OpenID providers beyond Discord, Google, Steam — not in scope
 - PayPal — deferred to v1.2
 - BGG / Steam API — deferred to v1.3
 - Challonge integration — deferred to v1.3

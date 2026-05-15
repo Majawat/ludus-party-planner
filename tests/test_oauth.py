@@ -71,7 +71,7 @@ class TestOAuthLogin:
         assert resp.status_code == 404
 
     def test_unknown_provider_returns_404(self, client):
-        resp = client.get("/auth/steam/login")
+        resp = client.get("/auth/twitter/login")
         assert resp.status_code == 404
 
 
@@ -265,7 +265,7 @@ class TestAccountDisconnect:
 
     def test_disconnect_unknown_provider_404(self, client, regular_user):
         _login(client, regular_user, "userpass123")
-        resp = client.post("/account/disconnect/steam")
+        resp = client.post("/account/disconnect/twitter")
         assert resp.status_code == 404
 
 

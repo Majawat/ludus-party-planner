@@ -32,12 +32,14 @@ def profile():
         configured_providers.append("discord")
     if settings.get("google_oauth_client_id") and settings.get("google_oauth_client_secret"):
         configured_providers.append("google")
+    steam_enabled = settings.get("steam_enabled") == "true"
     connected = {acct.platform: acct for acct in current_user.platform_accounts}
     set_password_form = SetPasswordForm() if not current_user.has_password else None
     change_password_form = ChangePasswordForm() if current_user.has_password else None
     return render_template(
         "account/profile.html",
         configured_providers=configured_providers,
+        steam_enabled=steam_enabled,
         connected=connected,
         set_password_form=set_password_form,
         change_password_form=change_password_form,
@@ -100,7 +102,6 @@ def connect_provider(provider):
 @login_required
 def disconnect_provider(provider):
     if provider not in {"discord", "google"}:
-        from flask import abort
         abort(404)
     acct = UserPlatformAccount.query.filter_by(
         user_id=current_user.id, platform=provider
@@ -119,6 +120,39 @@ def disconnect_provider(provider):
     db.session.delete(acct)
     db.session.commit()
     flash(f"{provider.capitalize()} account disconnected.", "success")
+    return redirect(url_for("account.profile"))
+
+
+@account_bp.route("/account/connect/steam", methods=["POST"])
+@login_required
+def connect_steam():
+    from flask import session
+    if SiteSettings.get("steam_enabled") != "true":
+        abort(404)
+    session["steam_connecting"] = True
+    return redirect(url_for("auth.steam_login"))
+
+
+@account_bp.route("/account/disconnect/steam", methods=["POST"])
+@login_required
+def disconnect_steam():
+    acct = UserPlatformAccount.query.filter_by(
+        user_id=current_user.id, platform="steam"
+    ).first()
+    if acct is None:
+        flash("No Steam account is connected.", "info")
+        return redirect(url_for("account.profile"))
+    if not current_user.has_password:
+        linked_count = UserPlatformAccount.query.filter_by(user_id=current_user.id).count()
+        if linked_count <= 1:
+            flash(
+                "You must set a password before disconnecting your last login method.",
+                "error",
+            )
+            return redirect(url_for("account.profile"))
+    db.session.delete(acct)
+    db.session.commit()
+    flash("Steam account disconnected.", "success")
     return redirect(url_for("account.profile"))
 
 

@@ -1,8 +1,15 @@
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+import requests
+from openid.consumer.consumer import Consumer, SUCCESS
+from openid.store.memstore import MemoryStore
+
+from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 from extensions import oauth
-from forms import ForgotPasswordForm, LoginForm, OAuthConfirmLinkForm, RegistrationForm, ResetPasswordForm
+from forms import (
+    ForgotPasswordForm, LoginForm, OAuthConfirmLinkForm, RegistrationForm,
+    ResetPasswordForm, SteamCompleteRegistrationForm,
+)
 from mailer import send_password_reset_email, send_verification_email
 from models import (
     EmailVerificationToken, PasswordResetToken, SiteSettings, User,
@@ -12,6 +19,8 @@ from models import (
 auth_bp = Blueprint("auth", __name__)
 
 _VALID_PROVIDERS = {"discord", "google"}
+_openid_store = MemoryStore()
+STEAM_OPENID_URL = "https://steamcommunity.com/openid"
 
 _PROVIDER_CONFIG = {
     "discord": {
@@ -79,7 +88,8 @@ def register():
         flash("Account created! Check your email to verify your address.", "success")
         return redirect(url_for("auth.login"))
     oauth_providers = _get_configured_providers()
-    return render_template("auth/register.html", form=form, oauth_providers=oauth_providers)
+    steam_enabled = SiteSettings.get("steam_enabled") == "true"
+    return render_template("auth/register.html", form=form, oauth_providers=oauth_providers, steam_enabled=steam_enabled)
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
@@ -98,7 +108,8 @@ def login():
         flash("Invalid email or password.", "error")
         return redirect(url_for("auth.login"))
     oauth_providers = _get_configured_providers()
-    return render_template("auth/login.html", form=form, oauth_providers=oauth_providers)
+    steam_enabled = SiteSettings.get("steam_enabled") == "true"
+    return render_template("auth/login.html", form=form, oauth_providers=oauth_providers, steam_enabled=steam_enabled)
 
 
 @auth_bp.route("/logout")
@@ -177,11 +188,9 @@ def reset_password(token):
 @auth_bp.route("/auth/<provider>/login")
 def oauth_login(provider):
     if provider not in _VALID_PROVIDERS:
-        from flask import abort
         abort(404)
     client = get_oauth_client(provider)
     if client is None:
-        from flask import abort
         abort(404)
     if current_user.is_authenticated:
         session["oauth_connecting"] = True
@@ -191,7 +200,6 @@ def oauth_login(provider):
 
 @auth_bp.route("/auth/<provider>/callback")
 def oauth_callback(provider):
-    from flask import abort
     if provider not in _VALID_PROVIDERS:
         abort(404)
     client = get_oauth_client(provider)
@@ -292,7 +300,6 @@ def oauth_callback(provider):
 
 @auth_bp.route("/auth/<provider>/confirm-link", methods=["POST"])
 def oauth_confirm_link(provider):
-    from flask import abort
     if provider not in _VALID_PROVIDERS:
         abort(404)
 
@@ -329,3 +336,120 @@ def oauth_confirm_link(provider):
     login_user(user)
     flash(f"{provider.capitalize()} account linked to your existing account.", "success")
     return redirect(url_for("account.dashboard"))
+
+
+# ---------------------------------------------------------------------------
+# Steam OpenID routes
+# ---------------------------------------------------------------------------
+
+def _fetch_steam_persona(steam64_id):
+    api_key = SiteSettings.get("steam_api_key", "")
+    if not api_key:
+        return "Steam User"
+    try:
+        r = requests.get(
+            "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/",
+            params={"key": api_key, "steamids": steam64_id},
+            timeout=3,
+        )
+        return r.json()["response"]["players"][0]["personaname"]
+    except Exception:
+        return "Steam User"
+
+
+@auth_bp.route("/auth/steam/login")
+def steam_login():
+    if SiteSettings.get("steam_enabled") != "true":
+        abort(404)
+    if current_user.is_authenticated:
+        session["steam_connecting"] = True
+    consumer = Consumer(session, _openid_store)
+    try:
+        auth_request = consumer.begin(STEAM_OPENID_URL)
+    except Exception:
+        flash("Could not connect to Steam. Please try again.", "error")
+        return redirect(url_for("auth.login"))
+    callback_url = url_for("auth.steam_callback", _external=True)
+    realm = request.host_url.rstrip("/")
+    return redirect(auth_request.redirectURL(realm, callback_url))
+
+
+@auth_bp.route("/auth/steam/callback")
+def steam_callback():
+    if SiteSettings.get("steam_enabled") != "true":
+        abort(404)
+    consumer = Consumer(session, _openid_store)
+    response = consumer.complete(request.args.to_dict(), request.url)
+    if response.status != SUCCESS:
+        flash("Steam login failed or was cancelled.", "error")
+        return redirect(url_for("auth.login"))
+
+    steam64_id = response.identity_url.split("/")[-1]
+    persona_name = _fetch_steam_persona(steam64_id)
+    connecting = session.pop("steam_connecting", False)
+
+    if connecting and current_user.is_authenticated:
+        existing = UserPlatformAccount.query.filter_by(
+            platform="steam", platform_user_id=steam64_id
+        ).first()
+        if existing:
+            if existing.user_id == current_user.id:
+                flash("This Steam account is already linked to your account.", "info")
+            else:
+                flash("This Steam account is already linked to a different Ludus account.", "error")
+            return redirect(url_for("account.profile"))
+        db.session.add(UserPlatformAccount(
+            user_id=current_user.id,
+            platform="steam",
+            username=persona_name,
+            platform_user_id=steam64_id,
+        ))
+        db.session.commit()
+        flash("Steam account linked successfully.", "success")
+        return redirect(url_for("account.profile"))
+
+    platform_acct = UserPlatformAccount.query.filter_by(
+        platform="steam", platform_user_id=steam64_id
+    ).first()
+    if platform_acct:
+        login_user(platform_acct.user)
+        return redirect(url_for("account.dashboard"))
+
+    session["steam_pending"] = {"steam64_id": steam64_id, "persona_name": persona_name}
+    return redirect(url_for("auth.steam_complete_registration"))
+
+
+@auth_bp.route("/auth/steam/complete-registration", methods=["GET", "POST"])
+def steam_complete_registration():
+    if SiteSettings.get("steam_enabled") != "true":
+        abort(404)
+    pending = session.get("steam_pending")
+    if not pending or not pending.get("steam64_id"):
+        return redirect(url_for("auth.login"))
+
+    form = SteamCompleteRegistrationForm()
+    if request.method == "GET":
+        form.name.data = pending.get("persona_name", "")
+
+    if form.validate_on_submit():
+        email = form.email.data.lower()
+        if User.query.filter_by(email=email).first():
+            flash("An account with that email already exists.", "error")
+            return render_template("auth/steam_complete_registration.html", form=form)
+        new_user = User(name=form.name.data, email=email, email_verified_at=utcnow())
+        new_user.set_password(form.password.data)
+        db.session.add(new_user)
+        db.session.flush()
+        db.session.add(UserPlatformAccount(
+            user_id=new_user.id,
+            platform="steam",
+            username=pending.get("persona_name", "Steam User"),
+            platform_user_id=pending["steam64_id"],
+        ))
+        db.session.commit()
+        session.pop("steam_pending", None)
+        login_user(new_user)
+        flash("Account created! You can now register for events.", "success")
+        return redirect(url_for("account.dashboard"))
+
+    return render_template("auth/steam_complete_registration.html", form=form)
