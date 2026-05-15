@@ -223,6 +223,38 @@ def seat_selection(slug):
     )
 
 
+def _render_seat_grid(event, reg):
+    seats = (
+        db.session.execute(
+            db.select(Seat)
+            .where(Seat.event_id == event.id)
+            .order_by(Seat.display_order, Seat.id)
+        )
+        .scalars()
+        .all()
+    )
+    taken_regs = (
+        db.session.execute(
+            db.select(Registration)
+            .where(
+                Registration.event_id == event.id,
+                Registration.seat_id.isnot(None),
+                Registration.status != "cancelled",
+            )
+        )
+        .scalars()
+        .all()
+    )
+    taken_map = {r.seat_id: r for r in taken_regs}
+    return render_template(
+        "account/seats_grid_partial.html",
+        event=event,
+        registration=reg,
+        seats=seats,
+        taken_map=taken_map,
+    )
+
+
 @account_bp.route("/events/<slug>/seats/claim", methods=["POST"])
 @login_required
 def seat_claim(slug):
@@ -257,6 +289,8 @@ def seat_claim(slug):
 
     reg.seat_id = seat.id
     db.session.commit()
+    if request.headers.get("HX-Request"):
+        return _render_seat_grid(event, reg)
     flash(f"Seat '{seat.label}' claimed!", "success")
     return redirect(url_for("account.my_registration", slug=slug))
 
@@ -271,6 +305,8 @@ def seat_release(slug):
         abort(403)
     reg.seat_id = None
     db.session.commit()
+    if request.headers.get("HX-Request"):
+        return _render_seat_grid(event, reg)
     flash("Seat released.", "success")
     return redirect(url_for("account.my_registration", slug=slug))
 

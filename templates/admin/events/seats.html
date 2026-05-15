@@ -17,49 +17,36 @@
 
   <h1 class="text-2xl font-bold mb-6">Seats — {{ event.name }}</h1>
 
-  <!-- Seat list -->
+  <!-- Seat map -->
   <div class="card bg-base-200 shadow mb-6">
     <div class="card-body">
       <h2 class="card-title text-base mb-3">All Seats ({{ seats | length }})</h2>
       {% if seats %}
-        <div class="overflow-x-auto">
-          <table class="table table-sm">
-            <thead>
-              <tr>
-                <th>Label</th>
-                <th>Order</th>
-                <th>Claimed By</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for seat in seats %}
-                <tr>
-                  <td class="font-medium">{{ seat.label }}</td>
-                  <td class="text-sm opacity-60">{{ seat.display_order }}</td>
-                  <td>
-                    {% if seat.id in taken_map %}
-                      <a href="{{ url_for('admin.registration_detail', id=event.id, rid=taken_map[seat.id].id) }}"
-                         class="link link-hover text-sm">{{ taken_map[seat.id].user.name }}</a>
-                    {% else %}
-                      <span class="badge badge-success badge-sm">Available</span>
-                    {% endif %}
-                  </td>
-                  <td class="text-right">
-                    {% if seat.id not in taken_map %}
-                      <form method="POST" action="{{ url_for('admin.seat_delete', id=event.id, sid=seat.id) }}"
-                            onsubmit="return confirm('Delete seat \'{{ seat.label }}\'?')">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                        <button type="submit" class="btn btn-ghost btn-xs text-error">Delete</button>
-                      </form>
-                    {% else %}
-                      <span class="text-xs opacity-40">Claimed</span>
-                    {% endif %}
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {% for seat in seats %}
+            {% set occupant = taken_map.get(seat.id) %}
+            <div class="card shadow border
+              {% if occupant %}border-warning/50 bg-warning/10
+              {% else %}border-base-300 bg-base-100{% endif %}">
+              <div class="card-body p-3 text-center">
+                <p class="font-semibold text-sm">{{ seat.label }}</p>
+                {% if occupant %}
+                  <a href="{{ url_for('admin.registration_detail', id=event.id, rid=occupant.id) }}"
+                     class="text-xs link link-hover text-base-content/70 truncate block max-w-full">
+                    {{ occupant.user.name }}
+                  </a>
+                {% else %}
+                  <span class="badge badge-success badge-xs mb-1">Available</span>
+                  <form method="POST"
+                        action="{{ url_for('admin.seat_delete', id=event.id, sid=seat.id) }}"
+                        onsubmit="return confirm('Delete seat \'{{ seat.label }}\'?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button type="submit" class="btn btn-ghost btn-xs text-error">Delete</button>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
         </div>
       {% else %}
         <p class="text-sm opacity-60">No seats yet. Add some below.</p>

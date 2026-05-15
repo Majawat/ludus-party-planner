@@ -177,6 +177,11 @@ class Event(db.Model):
         order_by="EventAnnouncement.created_at",
         cascade="all, delete-orphan",
     )
+    game_suggestions = db.relationship(
+        "GameSuggestion",
+        back_populates="event",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def capacity(self):
@@ -332,6 +337,40 @@ class EventAnnouncement(db.Model):
 
     event = db.relationship("Event", back_populates="announcements")
     author = db.relationship("User", backref="announcements")
+
+
+class GameSuggestion(db.Model):
+    __tablename__ = "game_suggestions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
+    suggested_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    game_name = db.Column(db.Text, nullable=False)
+    bgg_id = db.Column(db.Integer, nullable=True)
+    steam_app_id = db.Column(db.Integer, nullable=True)
+    suggested_datetime = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+
+    event = db.relationship("Event", back_populates="game_suggestions")
+    suggester = db.relationship("User", backref="game_suggestions")
+    votes = db.relationship(
+        "GameSuggestionVote",
+        back_populates="suggestion",
+        cascade="all, delete-orphan",
+    )
+
+
+class GameSuggestionVote(db.Model):
+    __tablename__ = "game_suggestion_votes"
+    __table_args__ = (UniqueConstraint("suggestion_id", "user_id"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    suggestion_id = db.Column(db.Integer, db.ForeignKey("game_suggestions.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+
+    suggestion = db.relationship("GameSuggestion", back_populates="votes")
+    voter = db.relationship("User", backref="suggestion_votes")
 
 
 def unique_slug(base_slug: str, exclude_id: int = None) -> str:

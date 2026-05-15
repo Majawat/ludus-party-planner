@@ -1,8 +1,9 @@
-from flask import Blueprint, render_template, abort
-from flask_login import current_user
-from sqlalchemy import select
+from flask import Blueprint, render_template, abort, flash, redirect, url_for
+from flask_login import current_user, login_required
+from sqlalchemy import select, func
 
-from models import db, Event, EventAnnouncement, EventScheduleItem, PotluckItem, Registration, SiteSettings, utcnow
+from forms import GameSuggestionForm
+from models import db, Event, EventAnnouncement, EventScheduleItem, GameSuggestion, GameSuggestionVote, PotluckItem, Registration, SiteSettings, utcnow
 
 public_bp = Blueprint("public", __name__)
 
@@ -88,6 +89,32 @@ def event_detail(slug):
         .all()
     )
 
+    suggestions = (
+        db.session.execute(
+            db.select(GameSuggestion, func.count(GameSuggestionVote.id).label("vote_count"))
+            .outerjoin(GameSuggestionVote, GameSuggestion.id == GameSuggestionVote.suggestion_id)
+            .where(GameSuggestion.event_id == event.id)
+            .group_by(GameSuggestion.id)
+            .order_by(func.count(GameSuggestionVote.id).desc(), GameSuggestion.created_at.asc())
+        )
+        .all()
+    )
+
+    user_voted = set()
+    if current_user.is_authenticated and suggestions:
+        voted = GameSuggestionVote.query.filter_by(user_id=current_user.id).filter(
+            GameSuggestionVote.suggestion_id.in_([row[0].id for row in suggestions])
+        ).all()
+        user_voted = {v.suggestion_id for v in voted}
+
+    can_suggest = (
+        current_user.is_authenticated
+        and user_registration is not None
+        and user_registration.status == "confirmed"
+        and event.is_upcoming
+    )
+    suggestion_form = GameSuggestionForm() if can_suggest else None
+
     return render_template(
         "public/event_detail.html",
         event=event,
@@ -97,4 +124,87 @@ def event_detail(slug):
         schedule_items=schedule_items,
         potluck_items=potluck_items,
         announcements=announcements,
+        suggestions=suggestions,
+        user_voted=user_voted,
+        can_suggest=can_suggest,
+        suggestion_form=suggestion_form,
     )
+
+
+@public_bp.route("/events/<slug>/suggestions/add", methods=["POST"])
+@login_required
+def suggestion_add(slug):
+    event = db.session.execute(
+        select(Event).filter_by(slug=slug, status="published")
+    ).scalar_one_or_none()
+    if event is None:
+        abort(404)
+
+    if not event.is_upcoming:
+        abort(403)
+
+    reg = Registration.query.filter_by(
+        user_id=current_user.id, event_id=event.id
+    ).first()
+    if reg is None or reg.status == "cancelled":
+        abort(403)
+
+    form = GameSuggestionForm()
+    if form.validate_on_submit():
+        duplicate = GameSuggestion.query.filter_by(
+            event_id=event.id,
+            suggested_by=current_user.id,
+            game_name=form.game_name.data.strip(),
+        ).first()
+        if duplicate:
+            flash("You have already suggested that game for this event.", "warning")
+        else:
+            suggestion = GameSuggestion(
+                event_id=event.id,
+                suggested_by=current_user.id,
+                game_name=form.game_name.data.strip(),
+                suggested_datetime=form.suggested_datetime.data or None,
+            )
+            db.session.add(suggestion)
+            db.session.commit()
+            flash("Game suggestion added!", "success")
+    else:
+        flash("Game name is required.", "error")
+
+    return redirect(url_for("public.event_detail", slug=slug))
+
+
+@public_bp.route("/events/<slug>/suggestions/<int:sid>/vote", methods=["POST"])
+@login_required
+def suggestion_vote(slug, sid):
+    event = db.session.execute(
+        select(Event).filter_by(slug=slug, status="published")
+    ).scalar_one_or_none()
+    if event is None:
+        abort(404)
+
+    if not event.is_upcoming:
+        abort(403)
+
+    reg = Registration.query.filter_by(
+        user_id=current_user.id, event_id=event.id
+    ).first()
+    if reg is None or reg.status == "cancelled":
+        abort(403)
+
+    suggestion = db.session.get(GameSuggestion, sid)
+    if suggestion is None or suggestion.event_id != event.id:
+        abort(404)
+
+    existing_vote = GameSuggestionVote.query.filter_by(
+        suggestion_id=sid, user_id=current_user.id
+    ).first()
+    if existing_vote:
+        db.session.delete(existing_vote)
+        db.session.commit()
+    else:
+        vote = GameSuggestionVote(suggestion_id=sid, user_id=current_user.id)
+        db.session.add(vote)
+        db.session.commit()
+
+    return redirect(url_for("public.event_detail", slug=slug))

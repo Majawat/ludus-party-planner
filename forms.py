@@ -232,3 +232,11 @@ class AdminSettingsForm(FlaskForm):
     registration_enabled = BooleanField("Registration Enabled")
     show_upcoming_event_on_homepage = BooleanField("Show Upcoming Event on Homepage")
     ui_theme = SelectField("Site Theme", choices=_THEME_CHOICES)
+
+
+class GameSuggestionForm(FlaskForm):
+    game_name = StringField("Game Name", validators=[DataRequired(), Length(max=300)])
+    suggested_datetime = DateTimeLocalField(
+        "Suggested Play Time", format="%Y-%m-%dT%H:%M", validators=[Optional()]
+    )
+    submit = SubmitField("Suggest Game")
