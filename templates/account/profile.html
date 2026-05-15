@@ -3,8 +3,122 @@
 {% block title %}My Account — {{ site_name }}{% endblock %}
 
 {% block content %}
-<h1 class="text-3xl font-bold mb-6">My Account</h1>
-<div class="alert alert-info">
-  <span>Profile settings coming soon.</span>
+<div class="max-w-2xl mx-auto">
+  <h1 class="text-3xl font-bold mb-8">My Account</h1>
+
+  {# --- Profile Info --- #}
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title text-lg mb-4">Profile</h2>
+      <dl class="space-y-2">
+        <div class="flex gap-2">
+          <dt class="font-semibold w-20">Name</dt>
+          <dd>{{ current_user.name }}</dd>
+        </div>
+        <div class="flex gap-2">
+          <dt class="font-semibold w-20">Email</dt>
+          <dd>
+            {{ current_user.email }}
+            {% if current_user.is_verified %}
+              <span class="badge badge-success badge-sm ml-2">Verified</span>
+            {% else %}
+              <span class="badge badge-warning badge-sm ml-2">Not Verified</span>
+            {% endif %}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  </div>
+
+  {# --- Set Password (OAuth-only users) --- #}
+  {% if set_password_form %}
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title text-lg mb-2">Set Password</h2>
+      <p class="text-sm text-base-content/70 mb-4">
+        Your account was created via OAuth. Set a password to also log in with email and password.
+      </p>
+      <form method="POST" action="{{ url_for('account.set_password') }}" class="space-y-4">
+        {{ set_password_form.hidden_tag() }}
+        <div class="form-control">
+          {{ set_password_form.password.label(class="label label-text") }}
+          {{ set_password_form.password(class="input input-bordered w-full") }}
+        </div>
+        <div class="form-control">
+          {{ set_password_form.confirm_password.label(class="label label-text") }}
+          {{ set_password_form.confirm_password(class="input input-bordered w-full") }}
+        </div>
+        <button type="submit" class="btn btn-primary">Set Password</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {# --- Change Password --- #}
+  {% if change_password_form %}
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title text-lg mb-4">Change Password</h2>
+      <form method="POST" action="{{ url_for('account.change_password') }}" class="space-y-4">
+        {{ change_password_form.hidden_tag() }}
+        <div class="form-control">
+          {{ change_password_form.current_password.label(class="label label-text") }}
+          {{ change_password_form.current_password(class="input input-bordered w-full") }}
+        </div>
+        <div class="form-control">
+          {{ change_password_form.new_password.label(class="label label-text") }}
+          {{ change_password_form.new_password(class="input input-bordered w-full") }}
+        </div>
+        <div class="form-control">
+          {{ change_password_form.confirm_password.label(class="label label-text") }}
+          {{ change_password_form.confirm_password(class="input input-bordered w-full") }}
+        </div>
+        <button type="submit" class="btn btn-primary">Change Password</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {# --- Connected Accounts --- #}
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title text-lg mb-4">Connected Accounts</h2>
+      {% if not configured_providers %}
+        <p class="text-sm text-base-content/70">
+          No OAuth providers are configured. An admin can enable them in Site Settings.
+        </p>
+      {% else %}
+        <div class="space-y-3">
+          {% for provider in configured_providers %}
+            {% set account = connected.get(provider) %}
+            <div class="flex items-center justify-between p-3 bg-base-100 rounded-lg">
+              <div>
+                <span class="font-semibold">{{ provider|capitalize }}</span>
+                {% if account %}
+                  <span class="text-sm text-base-content/70 ml-2">{{ account.username }}</span>
+                  <span class="badge badge-success badge-sm ml-2">Connected</span>
+                {% else %}
+                  <span class="badge badge-ghost badge-sm ml-2">Not connected</span>
+                {% endif %}
+              </div>
+              <div>
+                {% if account %}
+                  <form method="POST" action="{{ url_for('account.disconnect_provider', provider=provider) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-error btn-outline">Disconnect</button>
+                  </form>
+                {% else %}
+                  <form method="POST" action="{{ url_for('account.connect_provider', provider=provider) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-outline">Connect</button>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
 </div>
 {% endblock %}

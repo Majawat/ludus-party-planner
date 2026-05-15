@@ -4,9 +4,9 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
-from forms import EventRegistrationForm, PotluckItemForm
+from forms import ChangePasswordForm, EventRegistrationForm, PotluckItemForm, SetPasswordForm
 from mailer import send_registration_confirmation_email
-from models import Event, EventQuestion, LoanerEquipment, LoanerRequest, PotluckItem, Registration, RegistrationAnswer, Seat, TicketType, db, utcnow
+from models import Event, EventQuestion, LoanerEquipment, LoanerRequest, PotluckItem, Registration, RegistrationAnswer, Seat, SiteSettings, TicketType, UserPlatformAccount, db, utcnow
 
 account_bp = Blueprint("account", __name__)
 
@@ -26,7 +26,100 @@ def dashboard():
 @account_bp.route("/account")
 @login_required
 def profile():
-    return render_template("account/profile.html")
+    settings = SiteSettings.all_as_dict()
+    configured_providers = []
+    if settings.get("discord_oauth_client_id") and settings.get("discord_oauth_client_secret"):
+        configured_providers.append("discord")
+    if settings.get("google_oauth_client_id") and settings.get("google_oauth_client_secret"):
+        configured_providers.append("google")
+    connected = {acct.platform: acct for acct in current_user.platform_accounts}
+    set_password_form = SetPasswordForm() if not current_user.has_password else None
+    change_password_form = ChangePasswordForm() if current_user.has_password else None
+    return render_template(
+        "account/profile.html",
+        configured_providers=configured_providers,
+        connected=connected,
+        set_password_form=set_password_form,
+        change_password_form=change_password_form,
+    )
+
+
+@account_bp.route("/account/set-password", methods=["POST"])
+@login_required
+def set_password():
+    if current_user.has_password:
+        from flask import abort
+        abort(403)
+    form = SetPasswordForm()
+    if form.validate_on_submit():
+        current_user.set_password(form.password.data)
+        db.session.commit()
+        flash("Password set successfully. You can now log in with email and password.", "success")
+    else:
+        for field in form:
+            for error in field.errors:
+                flash(error, "error")
+    return redirect(url_for("account.profile"))
+
+
+@account_bp.route("/account/change-password", methods=["POST"])
+@login_required
+def change_password():
+    if not current_user.has_password:
+        from flask import abort
+        abort(403)
+    form = ChangePasswordForm()
+    if form.validate_on_submit():
+        if not current_user.check_password(form.current_password.data):
+            flash("Current password is incorrect.", "error")
+            return redirect(url_for("account.profile"))
+        current_user.set_password(form.new_password.data)
+        db.session.commit()
+        flash("Password changed successfully.", "success")
+    else:
+        for field in form:
+            for error in field.errors:
+                flash(error, "error")
+    return redirect(url_for("account.profile"))
+
+
+@account_bp.route("/account/connect/<provider>", methods=["POST"])
+@login_required
+def connect_provider(provider):
+    from flask import session, abort
+    if provider not in {"discord", "google"}:
+        abort(404)
+    settings = SiteSettings.all_as_dict()
+    if not (settings.get(f"{provider}_oauth_client_id") and settings.get(f"{provider}_oauth_client_secret")):
+        abort(404)
+    session["oauth_connecting"] = True
+    return redirect(url_for("auth.oauth_login", provider=provider))
+
+
+@account_bp.route("/account/disconnect/<provider>", methods=["POST"])
+@login_required
+def disconnect_provider(provider):
+    if provider not in {"discord", "google"}:
+        from flask import abort
+        abort(404)
+    acct = UserPlatformAccount.query.filter_by(
+        user_id=current_user.id, platform=provider
+    ).first()
+    if acct is None:
+        flash(f"No {provider.capitalize()} account is connected.", "info")
+        return redirect(url_for("account.profile"))
+    if not current_user.has_password:
+        linked_count = UserPlatformAccount.query.filter_by(user_id=current_user.id).count()
+        if linked_count <= 1:
+            flash(
+                "You must set a password before disconnecting your last login method.",
+                "error",
+            )
+            return redirect(url_for("account.profile"))
+    db.session.delete(acct)
+    db.session.commit()
+    flash(f"{provider.capitalize()} account disconnected.", "success")
+    return redirect(url_for("account.profile"))
 
 
 @account_bp.route("/events/<slug>/register", methods=["GET", "POST"])

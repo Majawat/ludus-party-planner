@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Link Account — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+  <h1 class="text-3xl font-bold mb-6">Link Account</h1>
+
+  <div class="card bg-base-200 shadow">
+    <div class="card-body">
+      <p class="mb-4">
+        We found an existing Ludus account registered with
+        <strong>{{ email }}</strong>.
+      </p>
+      <p class="mb-6">
+        Would you like to link your <strong>{{ provider|capitalize }}</strong> account
+        to this existing Ludus account? You will be logged in automatically.
+      </p>
+
+      <form method="POST" action="{{ url_for('auth.oauth_confirm_link', provider=provider) }}">
+        {{ form.hidden_tag() }}
+        <div class="flex gap-3">
+          <button type="submit" class="btn btn-primary">Yes, link accounts</button>
+          <a href="{{ url_for('auth.login') }}" class="btn btn-ghost">No, go back</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

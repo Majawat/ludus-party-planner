@@ -30,5 +30,16 @@
     <p><a href="{{ url_for('auth.forgot_password') }}" class="link">Forgot password?</a></p>
     <p>No account? <a href="{{ url_for('auth.register') }}" class="link">Register</a></p>
   </div>
+
+  {% if oauth_providers %}
+  <div class="divider mt-6">or</div>
+  <div class="space-y-2">
+    {% for provider in oauth_providers %}
+    <a href="{{ url_for('auth.oauth_login', provider=provider) }}" class="btn btn-outline w-full">
+      Continue with {{ provider|capitalize }}
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
 {% endblock %}
