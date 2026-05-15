@@ -116,6 +116,24 @@
             <dd>{{ reg.paid_at.strftime('%Y-%m-%d %H:%M') }}</dd>
           </div>
         {% endif %}
+        {% if reg.payment_processor %}
+          <div class="flex gap-2">
+            <dt class="opacity-60 w-32">Processor</dt>
+            <dd class="capitalize">{{ reg.payment_processor }}</dd>
+          </div>
+        {% endif %}
+        {% if reg.stripe_session_id %}
+          <div class="flex gap-2">
+            <dt class="opacity-60 w-32">Stripe Session</dt>
+            <dd class="font-mono text-xs break-all">{{ reg.stripe_session_id }}</dd>
+          </div>
+        {% endif %}
+        {% if reg.paypal_order_id %}
+          <div class="flex gap-2">
+            <dt class="opacity-60 w-32">PayPal Order</dt>
+            <dd class="font-mono text-xs break-all">{{ reg.paypal_order_id }}</dd>
+          </div>
+        {% endif %}
       </dl>
 
       {% if reg.status != 'cancelled' %}
