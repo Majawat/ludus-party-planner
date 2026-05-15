@@ -1,0 +1,44 @@
+<div id="checkin-reg-{{ reg.id }}" class="card bg-base-200 shadow">
+  <div class="card-body py-4">
+    <div class="flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <div class="font-bold text-lg">{{ reg.user.name }}</div>
+        <div class="text-sm text-base-content/60">{{ reg.ticket_type.name }}</div>
+        <div class="flex gap-2 mt-1">
+          {% if reg.payment_status == 'paid' %}
+            <span class="badge badge-success badge-sm">Paid</span>
+          {% elif reg.payment_status == 'comped' %}
+            <span class="badge badge-info badge-sm">Comped</span>
+          {% else %}
+            <span class="badge badge-warning badge-sm">Unpaid</span>
+          {% endif %}
+          {% if reg.checked_in_at %}
+            <span class="badge badge-success badge-sm">Checked In</span>
+          {% endif %}
+        </div>
+      </div>
+      <div>
+        {% if reg.checked_in_at %}
+          <div class="text-success font-semibold">
+            ✓ Checked in at {{ reg.checked_in_at.strftime('%-I:%M %p') }}
+          </div>
+          <form method="POST"
+                action="{{ url_for('admin.registration_undo_checkin', id=event.id, rid=reg.id) }}"
+                class="mt-1">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="btn btn-ghost btn-xs">Undo</button>
+          </form>
+        {% else %}
+          <form method="POST"
+                action="{{ url_for('admin.registration_checkin', id=event.id, rid=reg.id) }}"
+                hx-post="{{ url_for('admin.registration_checkin', id=event.id, rid=reg.id) }}"
+                hx-target="#checkin-reg-{{ reg.id }}"
+                hx-swap="outerHTML">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="btn btn-primary btn-lg">Check In</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

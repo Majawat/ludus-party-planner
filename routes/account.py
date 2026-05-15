@@ -1,12 +1,12 @@
 from uuid import uuid4
 
-from flask import Blueprint, abort, flash, redirect, render_template, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
-from forms import EventRegistrationForm
+from forms import EventRegistrationForm, PotluckItemForm
 from mailer import send_registration_confirmation_email
-from models import Event, Registration, Seat, TicketType, db, utcnow
+from models import Event, LoanerEquipment, LoanerRequest, PotluckItem, Registration, Seat, TicketType, db, utcnow
 
 account_bp = Blueprint("account", __name__)
 
@@ -124,10 +124,17 @@ def my_registration(slug):
         user_id=current_user.id, event_id=event.id
     ).first_or_404()
 
+    available_equipment = (
+        LoanerEquipment.query.filter_by(is_available=True).order_by(LoanerEquipment.name).all()
+        if event.is_upcoming and registration.status != "cancelled"
+        else []
+    )
+
     return render_template(
         "account/my_registration.html",
         event=event,
         registration=registration,
+        available_equipment=available_equipment,
     )
 
 
@@ -268,12 +275,17 @@ def seat_release(slug):
     return redirect(url_for("account.my_registration", slug=slug))
 
 
-@account_bp.route("/events/<slug>/my-registration/toggle-loaner", methods=["POST"])
+def _sync_needs_loaner(reg):
+    """Set reg.needs_loaner=True if an active (non-denied) LoanerRequest exists."""
+    active = reg.loaner_requests.filter(LoanerRequest.status != "denied").first()
+    reg.needs_loaner = active is not None
+
+
+@account_bp.route("/events/<slug>/my-registration/loaner", methods=["POST"])
 @login_required
-def toggle_loaner(slug):
-    from sqlalchemy import select as sa_select
+def update_loaner(slug):
     event = db.session.execute(
-        sa_select(Event).filter_by(slug=slug, status="published")
+        select(Event).filter_by(slug=slug, status="published")
     ).scalar_one_or_none()
     if event is None:
         abort(404)
@@ -284,10 +296,88 @@ def toggle_loaner(slug):
     if reg.status == "cancelled" or not event.is_upcoming:
         abort(403)
 
-    reg.needs_loaner = "needs_loaner" in request.form
-    db.session.commit()
-    if reg.needs_loaner:
+    equipment_id_raw = request.form.get("equipment_id", "none").strip()
+
+    # Cancel any existing active loaner request first
+    existing = reg.loaner_requests.filter(LoanerRequest.status != "denied").first()
+    if existing:
+        db.session.delete(existing)
+
+    if equipment_id_raw != "none":
+        equipment_id = None
+        if equipment_id_raw != "0":
+            try:
+                equipment_id = int(equipment_id_raw)
+                eq = db.session.get(LoanerEquipment, equipment_id)
+                if eq is None:
+                    flash("Equipment not found.", "error")
+                    return redirect(url_for("account.my_registration", slug=slug))
+            except ValueError:
+                equipment_id = None
+
+        loaner_req = LoanerRequest(
+            registration_id=reg.id,
+            equipment_id=equipment_id,
+            status="requested",
+        )
+        db.session.add(loaner_req)
+        reg.needs_loaner = True
         flash("Loaner request saved.", "success")
     else:
+        reg.needs_loaner = False
         flash("Loaner request removed.", "success")
+
+    db.session.commit()
+    return redirect(url_for("account.my_registration", slug=slug))
+
+
+@account_bp.route("/events/<slug>/my-registration/potluck/add", methods=["POST"])
+@login_required
+def potluck_add(slug):
+    event = db.session.execute(
+        select(Event).filter_by(slug=slug, status="published")
+    ).scalar_one_or_none()
+    if event is None:
+        abort(404)
+    reg = Registration.query.filter_by(
+        user_id=current_user.id, event_id=event.id
+    ).first_or_404()
+
+    if reg.status == "cancelled" or not event.is_upcoming:
+        abort(403)
+
+    form = PotluckItemForm()
+    if form.validate_on_submit():
+        item = PotluckItem(
+            event_id=event.id,
+            registration_id=reg.id,
+            description=form.description.data,
+        )
+        db.session.add(item)
+        db.session.commit()
+        flash("Item added to potluck list.", "success")
+    else:
+        flash("Please enter a description.", "error")
+    return redirect(url_for("account.my_registration", slug=slug))
+
+
+@account_bp.route("/events/<slug>/my-registration/potluck/<int:item_id>/delete", methods=["POST"])
+@login_required
+def potluck_delete(slug, item_id):
+    event = db.session.execute(
+        select(Event).filter_by(slug=slug, status="published")
+    ).scalar_one_or_none()
+    if event is None:
+        abort(404)
+    reg = Registration.query.filter_by(
+        user_id=current_user.id, event_id=event.id
+    ).first_or_404()
+
+    item = db.session.get(PotluckItem, item_id)
+    if item is None or item.registration_id != reg.id:
+        abort(403)
+
+    db.session.delete(item)
+    db.session.commit()
+    flash("Item removed from potluck list.", "success")
     return redirect(url_for("account.my_registration", slug=slug))

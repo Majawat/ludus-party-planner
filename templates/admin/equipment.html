@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Loaner Equipment — Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+
+  <div class="breadcrumbs text-sm mb-6">
+    <ul>
+      <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li>Loaner Equipment</li>
+    </ul>
+  </div>
+
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-bold">Loaner Equipment</h1>
+  </div>
+
+  <!-- Add equipment form -->
+  <div class="card bg-base-200 shadow mb-8">
+    <div class="card-body">
+      <h2 class="card-title text-lg mb-4">Add Equipment</h2>
+      <form method="POST" action="{{ url_for('admin.equipment_add') }}">
+        {{ form.hidden_tag() }}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div class="form-control">
+            {{ form.name.label(class="label label-text font-semibold") }}
+            {{ form.name(class="input input-bordered w-full", placeholder="Gaming PC 1") }}
+          </div>
+          <div class="form-control">
+            {{ form.specs.label(class="label label-text font-semibold") }}
+            {{ form.specs(class="input input-bordered w-full", placeholder="i7-12700, 16GB RAM, RTX 3060") }}
+          </div>
+          <div class="form-control sm:col-span-2">
+            {{ form.description.label(class="label label-text font-semibold") }}
+            {{ form.description(class="textarea textarea-bordered w-full", rows="2") }}
+          </div>
+          <div class="form-control">
+            <label class="label cursor-pointer gap-3 justify-start">
+              {{ form.is_available(class="checkbox checkbox-primary") }}
+              <span class="label-text">Available for borrowing</span>
+            </label>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Add Equipment</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Equipment list -->
+  {% if equipment %}
+  <div class="space-y-4">
+    {% for eq in equipment %}
+    <div class="card bg-base-200 shadow">
+      <div class="card-body">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="font-bold text-lg">{{ eq.name }}</h3>
+              {% if eq.is_available %}
+                <span class="badge badge-success badge-sm">Available</span>
+              {% else %}
+                <span class="badge badge-ghost badge-sm">Unavailable</span>
+              {% endif %}
+            </div>
+            {% if eq.specs %}
+              <p class="text-sm text-base-content/70 mt-1">{{ eq.specs }}</p>
+            {% endif %}
+            {% if eq.description %}
+              <p class="text-sm text-base-content/60 mt-1">{{ eq.description }}</p>
+            {% endif %}
+          </div>
+          <div class="flex gap-2 flex-shrink-0">
+            <form method="POST" action="{{ url_for('admin.equipment_toggle', eid=eq.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="btn btn-outline btn-sm">
+                {% if eq.is_available %}Mark Unavailable{% else %}Mark Available{% endif %}
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Inline edit form -->
+        <details class="mt-3">
+          <summary class="text-sm text-primary cursor-pointer">Edit</summary>
+          <form method="POST" action="{{ url_for('admin.equipment_edit', eid=eq.id) }}" class="mt-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+              <div class="form-control">
+                <label class="label label-text font-semibold">Name</label>
+                <input type="text" name="name" value="{{ eq.name }}" class="input input-bordered input-sm w-full" required />
+              </div>
+              <div class="form-control">
+                <label class="label label-text font-semibold">Specs</label>
+                <input type="text" name="specs" value="{{ eq.specs or '' }}" class="input input-bordered input-sm w-full" />
+              </div>
+              <div class="form-control sm:col-span-2">
+                <label class="label label-text font-semibold">Description</label>
+                <textarea name="description" rows="2" class="textarea textarea-bordered textarea-sm w-full">{{ eq.description or '' }}</textarea>
+              </div>
+              <div class="form-control">
+                <label class="label cursor-pointer gap-3 justify-start">
+                  <input type="checkbox" name="is_available" class="checkbox checkbox-primary checkbox-sm"
+                         {% if eq.is_available %}checked{% endif %} />
+                  <span class="label-text">Available</span>
+                </label>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+          </form>
+        </details>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center text-base-content/50 py-16">
+    <p>No equipment added yet. Add the first piece above.</p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

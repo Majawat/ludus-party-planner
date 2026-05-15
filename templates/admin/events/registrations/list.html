@@ -14,9 +14,14 @@
 
 <div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
   <h1 class="text-2xl font-bold">Registrations</h1>
-  <a href="{{ url_for('admin.registrations_export', id=event.id) }}" class="btn btn-outline btn-sm">
-    Export CSV
-  </a>
+  <div class="flex gap-2">
+    <a href="{{ url_for('admin.checkin_mode', id=event.id) }}" class="btn btn-accent btn-sm">
+      Check-in Mode
+    </a>
+    <a href="{{ url_for('admin.registrations_export', id=event.id) }}" class="btn btn-outline btn-sm">
+      Export CSV
+    </a>
+  </div>
 </div>
 
 <!-- Filter tabs -->

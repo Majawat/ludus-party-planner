@@ -8,9 +8,13 @@ from flask_login import current_user
 
 from forms import (
     AdminEmailForm, AdminMarkPaidForm, AdminNotesForm, AdminSettingsForm,
-    BulkSeatForm, EventForm, SeatForm, TicketTypeForm,
+    AnnouncementForm, BulkSeatForm, EventForm, LoanerEquipmentForm,
+    SeatForm, ScheduleItemForm, TicketTypeForm,
 )
-from models import Event, Registration, Seat, SiteSettings, TicketType, User, db, slugify, unique_slug
+from models import (
+    Event, EventAnnouncement, EventScheduleItem, LoanerEquipment, LoanerRequest,
+    Registration, Seat, SiteSettings, TicketType, User, db, slugify, unique_slug,
+)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -497,6 +501,8 @@ def registration_checkin(id, rid):
     reg = _get_registration_or_404(event, rid)
     reg.checked_in_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.session.commit()
+    if request.headers.get("HX-Request"):
+        return render_template("admin/events/_checkin_row.html", reg=reg, event=event)
     flash("Checked in.", "success")
     return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
 
@@ -790,3 +796,228 @@ def email_compose():
         return redirect(url_for("admin.email_compose"))
 
     return render_template("admin/email.html", form=form, events=events)
+
+
+# ---------------------------------------------------------------------------
+# Event Schedule
+# ---------------------------------------------------------------------------
+
+@admin_bp.route("/events/<int:id>/schedule")
+def schedule_list(id):
+    event = _get_event_or_404(id)
+    form = ScheduleItemForm()
+    return render_template("admin/events/schedule.html", event=event, form=form)
+
+
+@admin_bp.route("/events/<int:id>/schedule/add", methods=["POST"])
+def schedule_add(id):
+    event = _get_event_or_404(id)
+    form = ScheduleItemForm()
+    if form.validate_on_submit():
+        item = EventScheduleItem(
+            event_id=event.id,
+            title=form.title.data,
+            description=form.description.data or None,
+            starts_at=form.starts_at.data,
+            ends_at=form.ends_at.data or None,
+            display_order=form.display_order.data or 0,
+        )
+        db.session.add(item)
+        db.session.commit()
+        if request.headers.get("HX-Request"):
+            return render_template("admin/events/_schedule_row.html", item=item, event=event)
+        flash("Schedule item added.", "success")
+    else:
+        for errors in form.errors.values():
+            for error in errors:
+                flash(error, "error")
+    return redirect(url_for("admin.schedule_list", id=event.id))
+
+
+@admin_bp.route("/events/<int:id>/schedule/<int:item_id>/delete", methods=["POST"])
+def schedule_delete(id, item_id):
+    event = _get_event_or_404(id)
+    item = db.session.get(EventScheduleItem, item_id)
+    if item is None or item.event_id != event.id:
+        abort(404)
+    db.session.delete(item)
+    db.session.commit()
+    if request.headers.get("HX-Request"):
+        return "", 200
+    flash("Schedule item deleted.", "success")
+    return redirect(url_for("admin.schedule_list", id=event.id))
+
+
+# ---------------------------------------------------------------------------
+# Event Announcements
+# ---------------------------------------------------------------------------
+
+@admin_bp.route("/events/<int:id>/announcements/add", methods=["POST"])
+def announcement_add(id):
+    event = _get_event_or_404(id)
+    form = AnnouncementForm()
+    if form.validate_on_submit():
+        ann = EventAnnouncement(
+            event_id=event.id,
+            title=form.title.data,
+            body=form.body.data,
+            created_by=current_user.id,
+        )
+        db.session.add(ann)
+        db.session.commit()
+        flash("Announcement posted.", "success")
+    else:
+        for errors in form.errors.values():
+            for error in errors:
+                flash(error, "error")
+    return redirect(url_for("admin.event_detail", id=event.id))
+
+
+@admin_bp.route("/events/<int:id>/announcements/<int:ann_id>/delete", methods=["POST"])
+def announcement_delete(id, ann_id):
+    event = _get_event_or_404(id)
+    ann = db.session.get(EventAnnouncement, ann_id)
+    if ann is None or ann.event_id != event.id:
+        abort(404)
+    db.session.delete(ann)
+    db.session.commit()
+    flash("Announcement deleted.", "success")
+    return redirect(url_for("admin.event_detail", id=event.id))
+
+
+# ---------------------------------------------------------------------------
+# Loaner Equipment
+# ---------------------------------------------------------------------------
+
+@admin_bp.route("/equipment")
+def equipment_list():
+    equipment = db.session.execute(
+        db.select(LoanerEquipment).order_by(LoanerEquipment.name)
+    ).scalars().all()
+    form = LoanerEquipmentForm()
+    form.is_available.data = True
+    return render_template("admin/equipment.html", equipment=equipment, form=form)
+
+
+@admin_bp.route("/equipment/add", methods=["POST"])
+def equipment_add():
+    form = LoanerEquipmentForm()
+    if form.validate_on_submit():
+        eq = LoanerEquipment(
+            name=form.name.data,
+            description=form.description.data or None,
+            specs=form.specs.data or None,
+            is_available=form.is_available.data,
+        )
+        db.session.add(eq)
+        db.session.commit()
+        flash(f"Equipment '{eq.name}' added.", "success")
+    else:
+        for errors in form.errors.values():
+            for error in errors:
+                flash(error, "error")
+    return redirect(url_for("admin.equipment_list"))
+
+
+@admin_bp.route("/equipment/<int:eid>/edit", methods=["POST"])
+def equipment_edit(eid):
+    eq = db.session.get(LoanerEquipment, eid)
+    if eq is None:
+        abort(404)
+    form = LoanerEquipmentForm()
+    if form.validate_on_submit():
+        eq.name = form.name.data
+        eq.description = form.description.data or None
+        eq.specs = form.specs.data or None
+        eq.is_available = form.is_available.data
+        db.session.commit()
+        flash("Equipment updated.", "success")
+    else:
+        for errors in form.errors.values():
+            for error in errors:
+                flash(error, "error")
+    return redirect(url_for("admin.equipment_list"))
+
+
+@admin_bp.route("/equipment/<int:eid>/toggle", methods=["POST"])
+def equipment_toggle(eid):
+    eq = db.session.get(LoanerEquipment, eid)
+    if eq is None:
+        abort(404)
+    eq.is_available = not eq.is_available
+    db.session.commit()
+    status = "available" if eq.is_available else "unavailable"
+    flash(f"'{eq.name}' marked as {status}.", "success")
+    return redirect(url_for("admin.equipment_list"))
+
+
+@admin_bp.route("/events/<int:id>/loaners")
+def loaners_list(id):
+    event = _get_event_or_404(id)
+    requests = (
+        db.session.execute(
+            db.select(LoanerRequest)
+            .join(LoanerRequest.registration)
+            .where(Registration.event_id == event.id)
+            .order_by(LoanerRequest.created_at)
+        )
+        .scalars()
+        .all()
+    )
+    return render_template("admin/events/loaners.html", event=event, requests=requests)
+
+
+@admin_bp.route("/events/<int:id>/loaners/<int:req_id>/approve", methods=["POST"])
+def loaner_approve(id, req_id):
+    event = _get_event_or_404(id)
+    req_obj = db.session.get(LoanerRequest, req_id)
+    if req_obj is None or req_obj.registration.event_id != event.id:
+        abort(404)
+    req_obj.status = "approved"
+    db.session.commit()
+    flash("Loaner request approved.", "success")
+    return redirect(url_for("admin.loaners_list", id=event.id))
+
+
+@admin_bp.route("/events/<int:id>/loaners/<int:req_id>/deny", methods=["POST"])
+def loaner_deny(id, req_id):
+    event = _get_event_or_404(id)
+    req_obj = db.session.get(LoanerRequest, req_id)
+    if req_obj is None or req_obj.registration.event_id != event.id:
+        abort(404)
+    req_obj.status = "denied"
+    db.session.commit()
+    flash("Loaner request denied.", "success")
+    return redirect(url_for("admin.loaners_list", id=event.id))
+
+
+# ---------------------------------------------------------------------------
+# Check-in Mode
+# ---------------------------------------------------------------------------
+
+@admin_bp.route("/events/<int:id>/checkin")
+def checkin_mode(id):
+    event = _get_event_or_404(id)
+    return render_template("admin/events/checkin.html", event=event)
+
+
+@admin_bp.route("/events/<int:id>/checkin/search")
+def checkin_search(id):
+    event = _get_event_or_404(id)
+    q = request.args.get("q", "").strip()
+    if not q:
+        return render_template("admin/events/_checkin_rows.html", registrations=[], event=event)
+    like = f"%{q}%"
+    registrations = (
+        db.session.execute(
+            db.select(Registration)
+            .where(Registration.event_id == event.id)
+            .join(Registration.user)
+            .where(db.or_(User.name.ilike(like), User.email.ilike(like)))
+            .where(Registration.status != "cancelled")
+            .order_by(User.name)
+        )
+        .scalars()
+        .all()
+    )
+    return render_template("admin/events/_checkin_rows.html", registrations=registrations, event=event)

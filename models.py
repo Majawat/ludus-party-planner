@@ -160,6 +160,23 @@ class Event(db.Model):
         back_populates="event",
         order_by="Registration.created_at",
     )
+    schedule_items = db.relationship(
+        "EventScheduleItem",
+        back_populates="event",
+        order_by="EventScheduleItem.starts_at",
+        cascade="all, delete-orphan",
+    )
+    potluck_items = db.relationship(
+        "PotluckItem",
+        back_populates="event",
+        cascade="all, delete-orphan",
+    )
+    announcements = db.relationship(
+        "EventAnnouncement",
+        back_populates="event",
+        order_by="EventAnnouncement.created_at",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def capacity(self):
@@ -246,6 +263,75 @@ class Registration(db.Model):
     event = db.relationship("Event", back_populates="registrations")
     ticket_type = db.relationship("TicketType", back_populates="registrations")
     seat = db.relationship("Seat", backref="registrations")
+
+
+class EventScheduleItem(db.Model):
+    __tablename__ = "event_schedule_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
+    title = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    starts_at = db.Column(db.DateTime, nullable=False)
+    ends_at = db.Column(db.DateTime, nullable=True)
+    display_order = db.Column(db.Integer, nullable=False, default=0)
+
+    event = db.relationship("Event", back_populates="schedule_items")
+
+
+class PotluckItem(db.Model):
+    __tablename__ = "potluck_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
+    registration_id = db.Column(db.Integer, db.ForeignKey("registrations.id"), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
+
+    event = db.relationship("Event", back_populates="potluck_items")
+    registration = db.relationship("Registration", backref="potluck_items")
+
+
+class LoanerEquipment(db.Model):
+    __tablename__ = "loaner_equipment"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text, nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    specs = db.Column(db.Text, nullable=True)
+    is_available = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+
+    requests = db.relationship("LoanerRequest", back_populates="equipment")
+
+
+class LoanerRequest(db.Model):
+    __tablename__ = "loaner_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    registration_id = db.Column(db.Integer, db.ForeignKey("registrations.id"), nullable=False)
+    equipment_id = db.Column(db.Integer, db.ForeignKey("loaner_equipment.id"), nullable=True)
+    status = db.Column(db.Text, nullable=False, default="requested")
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+
+    registration = db.relationship("Registration", backref=db.backref("loaner_requests", lazy="dynamic"))
+    equipment = db.relationship("LoanerEquipment", back_populates="requests")
+
+
+class EventAnnouncement(db.Model):
+    __tablename__ = "event_announcements"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
+    title = db.Column(db.Text, nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+
+    event = db.relationship("Event", back_populates="announcements")
+    author = db.relationship("User", backref="announcements")
 
 
 def unique_slug(base_slug: str, exclude_id: int = None) -> str:

@@ -74,6 +74,24 @@ def create_app(test_config=None):
             site_tagline = "Board Games & LAN Parties"
         return {"ui_theme": theme, "site_name": site_name, "site_tagline": site_tagline}
 
+    @app.before_request
+    def check_setup():
+        from flask import request as req, redirect, url_for
+        # Skip setup routes, static files, and health check
+        if (
+            req.path.startswith("/setup")
+            or req.path.startswith("/static")
+            or req.path == "/ping"
+        ):
+            return None
+        try:
+            admin_exists = User.query.filter_by(is_admin=True).first() is not None
+            setup_complete = SiteSettings.get("setup_complete", "false") == "true"
+            if not admin_exists or not setup_complete:
+                return redirect(url_for("setup.step1"))
+        except Exception:
+            pass
+
     @app.route("/ping")
     def ping():
         return jsonify({"status": "ok"})
@@ -131,6 +149,12 @@ def create_app(test_config=None):
         user.is_admin = True
         db.session.commit()
         click.echo(f"'{user.name}' ({email}) is now an admin.")
+
+    @app.cli.command("seed-setup")
+    def seed_setup():
+        """Reset setup_complete to false (for dev/testing to re-run the wizard)."""
+        SiteSettings.set("setup_complete", "false")
+        click.echo("setup_complete reset to false. Visit /setup to run the wizard again.")
 
     @app.cli.command("seed-event")
     def seed_event():

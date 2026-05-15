@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Schedule — {{ event.name }} — Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+
+  <div class="breadcrumbs text-sm mb-6">
+    <ul>
+      <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+      <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+      <li>Schedule</li>
+    </ul>
+  </div>
+
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-bold">Schedule</h1>
+  </div>
+
+  <!-- Add item form -->
+  <div class="card bg-base-200 shadow mb-8">
+    <div class="card-body">
+      <h2 class="card-title text-lg mb-4">Add Schedule Item</h2>
+      <form method="POST" action="{{ url_for('admin.schedule_add', id=event.id) }}"
+            hx-post="{{ url_for('admin.schedule_add', id=event.id) }}"
+            hx-target="#schedule-tbody"
+            hx-swap="beforeend"
+            hx-on::after-request="this.reset()">
+        {{ form.hidden_tag() }}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div class="form-control">
+            {{ form.title.label(class="label label-text font-semibold") }}
+            {{ form.title(class="input input-bordered w-full", placeholder="Opening Ceremony") }}
+          </div>
+          <div class="form-control">
+            {{ form.display_order.label(class="label label-text font-semibold") }}
+            {{ form.display_order(class="input input-bordered w-full") }}
+          </div>
+          <div class="form-control">
+            {{ form.starts_at.label(class="label label-text font-semibold") }}
+            {{ form.starts_at(class="input input-bordered w-full") }}
+          </div>
+          <div class="form-control">
+            {{ form.ends_at.label(class="label label-text font-semibold") }}
+            {{ form.ends_at(class="input input-bordered w-full") }}
+          </div>
+          <div class="form-control sm:col-span-2">
+            {{ form.description.label(class="label label-text font-semibold") }}
+            {{ form.description(class="textarea textarea-bordered w-full", rows="2") }}
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Add Item</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Items table -->
+  {% if event.schedule_items %}
+  <div class="overflow-x-auto">
+    <table class="table table-zebra w-full">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Title</th>
+          <th>Description</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="schedule-tbody">
+        {% for item in event.schedule_items %}
+          {% include "admin/events/_schedule_row.html" %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center text-base-content/50 py-12" id="schedule-empty">
+    <p>No schedule items yet. Add the first one above.</p>
+  </div>
+  <table class="hidden"><tbody id="schedule-tbody"></tbody></table>
+  {% endif %}
+
+</div>
+{% endblock %}

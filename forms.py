@@ -163,6 +163,58 @@ class AdminEmailForm(FlaskForm):
     submit = SubmitField("Send Emails")
 
 
+class SetupAdminForm(FlaskForm):
+    name = StringField("Name", validators=[DataRequired(), Length(max=120)])
+    email = StringField("Email", validators=[DataRequired(), Email()])
+    password = PasswordField("Password", validators=[DataRequired(), Length(min=8)])
+    confirm_password = PasswordField(
+        "Confirm Password", validators=[DataRequired(), EqualTo("password")]
+    )
+    submit = SubmitField("Create Admin Account")
+
+
+class SetupSiteForm(FlaskForm):
+    site_name = StringField("Site Name", validators=[DataRequired(), Length(max=200)])
+    site_tagline = StringField("Tagline", validators=[Optional(), Length(max=300)])
+    contact_email = StringField("Contact Email", validators=[Optional(), Email()])
+    ui_theme = SelectField("Site Theme", choices=_THEME_CHOICES)
+    submit = SubmitField("Save & Continue")
+
+
+class ScheduleItemForm(FlaskForm):
+    title = StringField("Title", validators=[DataRequired(), Length(max=200)])
+    description = TextAreaField("Description", validators=[Optional()])
+    starts_at = DateTimeLocalField(
+        "Starts At", format="%Y-%m-%dT%H:%M", validators=[DataRequired()]
+    )
+    ends_at = DateTimeLocalField(
+        "Ends At", format="%Y-%m-%dT%H:%M", validators=[Optional()]
+    )
+    display_order = IntegerField("Display Order", default=0, validators=[Optional()])
+    submit = SubmitField("Add Item")
+
+
+class PotluckItemForm(FlaskForm):
+    description = StringField(
+        "What are you bringing?", validators=[DataRequired(), Length(max=300)]
+    )
+    submit = SubmitField("Add Item")
+
+
+class LoanerEquipmentForm(FlaskForm):
+    name = StringField("Equipment Name", validators=[DataRequired(), Length(max=200)])
+    description = TextAreaField("Description", validators=[Optional()])
+    specs = TextAreaField("Specs", validators=[Optional()])
+    is_available = BooleanField("Available")
+    submit = SubmitField("Save")
+
+
+class AnnouncementForm(FlaskForm):
+    title = StringField("Title", validators=[DataRequired(), Length(max=200)])
+    body = TextAreaField("Body", validators=[DataRequired()])
+    submit = SubmitField("Post Announcement")
+
+
 class AdminSettingsForm(FlaskForm):
     site_name = StringField("Site Name", validators=[DataRequired()])
     site_tagline = StringField("Tagline", validators=[Optional()])

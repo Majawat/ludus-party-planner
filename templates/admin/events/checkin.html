@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Check-in — {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 py-8">
+
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold">Check-in Mode</h1>
+      <p class="text-base-content/60 text-sm">{{ event.name }}</p>
+    </div>
+    <a href="{{ url_for('admin.event_detail', id=event.id) }}" class="btn btn-ghost btn-sm">
+      &larr; Exit Check-in
+    </a>
+  </div>
+
+  <!-- Search box -->
+  <div class="mb-6">
+    <input
+      type="search"
+      name="q"
+      placeholder="Search by name or email…"
+      class="input input-bordered w-full text-lg"
+      hx-get="{{ url_for('admin.checkin_search', id=event.id) }}"
+      hx-target="#checkin-results"
+      hx-trigger="input changed delay:300ms, search"
+      hx-indicator="#search-spinner"
+      autocomplete="off"
+      autofocus
+    />
+    <span id="search-spinner" class="htmx-indicator loading loading-spinner loading-sm ml-2"></span>
+  </div>
+
+  <!-- Results -->
+  <div id="checkin-results">
+    <p class="text-base-content/50 text-center py-8">Start typing to search attendees.</p>
+  </div>
+
+</div>
+{% endblock %}

@@ -96,15 +96,73 @@
   <div class="card bg-base-200 shadow mb-6">
     <div class="card-body">
       <h2 class="card-title mb-2">Loaner Equipment</h2>
-      <p class="text-sm text-base-content/70 mb-3">Check this if you need to borrow a PC or laptop for the event.</p>
-      <form method="POST" action="{{ url_for('account.toggle_loaner', slug=event.slug) }}">
+      <p class="text-sm text-base-content/70 mb-4">Need to borrow a PC or laptop? Select one below or choose "No preference".</p>
+
+      {% set active_loaner = registration.loaner_requests.filter_by(status='requested').first() or registration.loaner_requests.filter_by(status='approved').first() %}
+
+      <form method="POST" action="{{ url_for('account.update_loaner', slug=event.slug) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-        <label class="flex items-center gap-3 cursor-pointer">
-          <input type="checkbox" name="needs_loaner" class="checkbox checkbox-primary"
-                 onchange="this.form.submit()"
-                 {% if registration.needs_loaner %}checked{% endif %} />
-          <span class="text-sm">I need a loaner PC / laptop</span>
-        </label>
+        <div class="space-y-2 mb-4">
+          <label class="flex items-start gap-3 cursor-pointer p-2 rounded-box hover:bg-base-300">
+            <input type="radio" name="equipment_id" value="none" class="radio radio-primary mt-0.5"
+                   {% if not active_loaner %}checked{% endif %} />
+            <span class="text-sm">I don't need a loaner</span>
+          </label>
+          <label class="flex items-start gap-3 cursor-pointer p-2 rounded-box hover:bg-base-300">
+            <input type="radio" name="equipment_id" value="0" class="radio radio-primary mt-0.5"
+                   {% if active_loaner and not active_loaner.equipment_id %}checked{% endif %} />
+            <div>
+              <div class="text-sm font-semibold">No preference</div>
+              <div class="text-xs text-base-content/60">I need something but any available equipment is fine</div>
+            </div>
+          </label>
+          {% for eq in available_equipment %}
+          <label class="flex items-start gap-3 cursor-pointer p-2 rounded-box hover:bg-base-300">
+            <input type="radio" name="equipment_id" value="{{ eq.id }}" class="radio radio-primary mt-0.5"
+                   {% if active_loaner and active_loaner.equipment_id == eq.id %}checked{% endif %} />
+            <div>
+              <div class="text-sm font-semibold">{{ eq.name }}</div>
+              {% if eq.specs %}
+                <div class="text-xs text-base-content/60">{{ eq.specs }}</div>
+              {% endif %}
+              {% if eq.description %}
+                <div class="text-xs text-base-content/50">{{ eq.description }}</div>
+              {% endif %}
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Save Loaner Preference</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if event.is_upcoming and registration.status != 'cancelled' %}
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title mb-2">Potluck</h2>
+      <p class="text-sm text-base-content/70 mb-4">Let everyone know what you're bringing to share.</p>
+
+      {% if registration.potluck_items %}
+        <ul class="mb-4 space-y-2">
+          {% for item in registration.potluck_items %}
+          <li class="flex items-center justify-between gap-3 text-sm bg-base-300 rounded-box px-3 py-2">
+            <span>{{ item.description }}</span>
+            <form method="POST" action="{{ url_for('account.potluck_delete', slug=event.slug, item_id=item.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="btn btn-ghost btn-xs text-error">Remove</button>
+            </form>
+          </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <form method="POST" action="{{ url_for('account.potluck_add', slug=event.slug) }}" class="flex gap-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="text" name="description" placeholder="Chips and salsa, 2L Dr Pepper…"
+               class="input input-bordered input-sm flex-1" maxlength="300" required />
+        <button type="submit" class="btn btn-primary btn-sm">Add</button>
       </form>
     </div>
   </div>

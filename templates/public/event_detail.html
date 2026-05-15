@@ -90,6 +90,71 @@
     {% endif %}
   </div>
 
+  {# Announcements #}
+  {% if announcements %}
+    <div class="card bg-base-200 shadow mb-8">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Announcements</h2>
+        <div class="space-y-4">
+          {% for ann in announcements %}
+          <div class="border-l-4 border-primary pl-4">
+            <div class="font-semibold">{{ ann.title }}</div>
+            <div class="text-sm text-base-content/80 mt-1 whitespace-pre-wrap">{{ ann.body }}</div>
+            <div class="text-xs text-base-content/40 mt-1">{{ ann.created_at.strftime('%B %-d, %Y') }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  {# Schedule #}
+  {% if schedule_items %}
+    <div class="card bg-base-200 shadow mb-8">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Schedule</h2>
+        <div class="space-y-3">
+          {% for item in schedule_items %}
+          <div class="flex gap-4">
+            <div class="text-sm text-base-content/60 min-w-32 pt-0.5 whitespace-nowrap">
+              {{ item.starts_at.strftime('%-m/%-d %-I:%M %p') }}
+              {% if item.ends_at %}
+                <br/>{{ item.ends_at.strftime('%-I:%M %p') }}
+              {% endif %}
+            </div>
+            <div>
+              <div class="font-semibold text-sm">{{ item.title }}</div>
+              {% if item.description %}
+                <div class="text-sm text-base-content/70 mt-0.5">{{ item.description }}</div>
+              {% endif %}
+            </div>
+          </div>
+          {% if not loop.last %}
+            <div class="border-t border-base-300"></div>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  {# Potluck #}
+  {% if potluck_items %}
+    <div class="card bg-base-200 shadow mb-8">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-3">Potluck</h2>
+        <div class="flex flex-wrap gap-2">
+          {% for item in potluck_items %}
+            <div class="badge badge-outline gap-1">
+              <span class="font-semibold">{{ item.registration.user.name }}:</span>
+              {{ item.description }}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
   {# Attendee list #}
   {% if attendees %}
     <div class="card bg-base-200 shadow mb-8">
