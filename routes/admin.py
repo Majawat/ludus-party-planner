@@ -3,17 +3,20 @@ import io
 import json
 from datetime import datetime, timedelta, timezone
 
+import requests as http_requests
 from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
+import challonge
 from forms import (
     AdminEmailForm, AdminMarkPaidForm, AdminNotesForm, AdminSettingsForm,
     AnnouncementForm, BulkSeatForm, EventForm, EventQuestionForm, LoanerEquipmentForm,
-    SeatForm, ScheduleItemForm, TicketTypeForm,
+    SeatForm, ScheduleItemForm, TicketTypeForm, TournamentForm,
 )
 from models import (
     Event, EventAnnouncement, EventQuestion, EventScheduleItem, LoanerEquipment, LoanerRequest,
-    Registration, RegistrationAnswer, Seat, SiteSettings, TicketType, User,
+    Registration, RegistrationAnswer, Seat, SiteSettings, TicketType, Tournament,
+    TournamentParticipant, User,
     db, slugify, unique_field_name, unique_slug,
 )
 
@@ -26,6 +29,13 @@ _BOOL_SETTINGS = {
     "stripe_enabled",
     "paypal_enabled",
 }
+
+
+def _challonge_configured():
+    return bool(
+        SiteSettings.get("challonge_api_key", "")
+        and SiteSettings.get("challonge_username", "")
+    )
 
 
 @admin_bp.before_request
@@ -1161,3 +1171,345 @@ def question_delete(id, qid):
         return "", 200
     flash("Question deleted.", "success")
     return redirect(url_for("admin.questions_list", id=event.id))
+
+
+# ---------------------------------------------------------------------------
+# Tournaments
+# ---------------------------------------------------------------------------
+
+
+@admin_bp.route("/events/<int:id>/tournaments")
+def tournaments_list(id):
+    event = db.session.get(Event, id)
+    if event is None:
+        abort(404)
+    return render_template(
+        "admin/events/tournaments/list.html",
+        event=event,
+        challonge_configured=_challonge_configured(),
+    )
+
+
+@admin_bp.route("/events/<int:id>/tournaments/new", methods=["GET", "POST"])
+def tournament_new(id):
+    event = db.session.get(Event, id)
+    if event is None:
+        abort(404)
+    if not _challonge_configured():
+        flash("Configure Challonge API credentials in Settings before creating a tournament.", "warning")
+        return redirect(url_for("admin.tournaments_list", id=id))
+    form = TournamentForm()
+    if form.validate_on_submit():
+        username = SiteSettings.get("challonge_username", "")
+        url_slug = challonge.generate_url_slug(event.name, form.name.data, username)
+        try:
+            challonge_id, full_url = challonge.create_tournament(
+                form.name.data,
+                url_slug,
+                form.format.data,
+                form.description.data or "",
+            )
+        except http_requests.RequestException as e:
+            flash(f"Challonge API error: {e}", "error")
+            return render_template("admin/events/tournaments/new.html", event=event, form=form)
+        tournament = Tournament(
+            event_id=event.id,
+            name=form.name.data,
+            game_name=form.game_name.data,
+            format=form.format.data,
+            description=form.description.data or None,
+            challonge_id=challonge_id,
+            challonge_url_slug=url_slug,
+            challonge_full_url=full_url,
+            status="pending",
+            sign_ups_open=form.sign_ups_open.data,
+        )
+        db.session.add(tournament)
+        db.session.commit()
+        flash(f"Tournament '{tournament.name}' created.", "success")
+        return redirect(url_for("admin.tournament_detail", id=id, tid=tournament.id))
+    return render_template("admin/events/tournaments/new.html", event=event, form=form)
+
+
+@admin_bp.route("/events/<int:id>/tournaments/<int:tid>")
+def tournament_detail(id, tid):
+    event = db.session.get(Event, id)
+    if event is None:
+        abort(404)
+    tournament = db.session.get(Tournament, tid)
+    if tournament is None or tournament.event_id != id:
+        abort(404)
+    # Build a map of registration_id → user for participant display
+    reg_ids = [p.registration_id for p in tournament.participants if p.registration_id]
+    registrations_by_id = {}
+    if reg_ids:
+        regs = Registration.query.filter(Registration.id.in_(reg_ids)).all()
+        registrations_by_id = {r.id: r for r in regs}
+    return render_template(
+        "admin/events/tournaments/detail.html",
+        event=event,
+        tournament=tournament,
+        registrations_by_id=registrations_by_id,
+        challonge_configured=_challonge_configured(),
+    )
+
+
+@admin_bp.route("/events/<int:id>/tournaments/<int:tid>/add-participants", methods=["GET", "POST"])
+def tournament_add_participants(id, tid):
+    event = db.session.get(Event, id)
+    if event is None:
+        abort(404)
+    tournament = db.session.get(Tournament, tid)
+    if tournament is None or tournament.event_id != id:
+        abort(404)
+
+    # Registrations already in this tournament
+    existing_reg_ids = {
+        p.registration_id for p in tournament.participants if p.registration_id is not None
+    }
+    # All confirmed registrations not yet added
+    available = (
+        Registration.query
+        .filter_by(event_id=id, status="confirmed")
+        .filter(Registration.id.notin_(existing_reg_ids))
+        .all()
+    )
+
+    if request.method == "POST":
+        selected_ids = request.form.getlist("registration_ids", type=int)
+        if not selected_ids:
+            flash("No registrations selected.", "warning")
+            return redirect(url_for("admin.tournament_add_participants", id=id, tid=tid))
+
+        regs = Registration.query.filter(Registration.id.in_(selected_ids)).all()
+        participants_data = [{"name": r.user.name} for r in regs]
+
+        try:
+            result = challonge.add_participants_bulk(tournament.challonge_url_slug, participants_data)
+        except http_requests.RequestException as e:
+            flash(f"Challonge API error: {e}", "error")
+            return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
+
+        # result is a list of {"participant": {...}}
+        api_participants = [item["participant"] for item in result] if isinstance(result, list) else []
+        # Match by index (Challonge returns them in the same order)
+        for i, reg in enumerate(regs):
+            cp_id = api_participants[i]["id"] if i < len(api_participants) else None
+            db.session.add(TournamentParticipant(
+                tournament_id=tid,
+                registration_id=reg.id,
+                challonge_participant_id=cp_id,
+                display_name=reg.user.name,
+            ))
+        db.session.commit()
+        flash(f"Added {len(regs)} participant(s).", "success")
+        return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
+
+    return render_template(
+        "admin/events/tournaments/add_participants.html",
+        event=event,
+        tournament=tournament,
+        available=available,
+    )
+
+
+@admin_bp.route("/events/<int:id>/tournaments/<int:tid>/add-manual", methods=["POST"])
+def tournament_add_manual(id, tid):
+    event = db.session.get(Event, id)
+    if event is None:
+        abort(404)
+    tournament = db.session.get(Tournament, tid)
+    if tournament is None or tournament.event_id != id:
+        abort(404)
+
+    display_name = request.form.get("display_name", "").strip()
+    if not display_name:
+        flash("Display name is required.", "error")
+        return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
+
+    try:
+        result = challonge.add_participants_bulk(tournament.challonge_url_slug, [{"name": display_name}])
+    except http_requests.RequestException as e:
+        flash(f"Challonge API error: {e}", "error")
+        return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
+
+    api_participants = [item["participant"] for item in result] if isinstance(result, list) else []
+    cp_id = api_participants[0]["id"] if api_participants else None
+
+    db.session.add(TournamentParticipant(
+        tournament_id=tid,
+        registration_id=None,
+        challonge_participant_id=cp_id,
+        display_name=display_name,
+    ))
+    db.session.commit()
+    flash(f"Added '{display_name}' as a manual participant.", "success")
+    return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
+
+
+@admin_bp.route("/events/<int:id>/tournaments/<int:tid>/remove-participant/<int:pid>", methods=["POST"])
+def tournament_remove_participant(id, tid, pid):
+    event = db.session.get(Event, id)
+    if event is None:
+        abort(404)
+    tournament = db.session.get(Tournament, tid)
+    if tournament is None or tournament.event_id != id:
+        abort(404)
+
+    if tournament.status in ("underway", "complete"):
+        flash("Cannot remove participants from a tournament that is underway or complete.", "error")
+        return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
+
+    participant = db.session.get(TournamentParticipant, pid)
+    if participant is None or participant.tournament_id != tid:
+        abort(404)
+
+    if participant.challonge_participant_id and tournament.challonge_url_slug:
+        try:
+            challonge.remove_participant(tournament.challonge_url_slug, participant.challonge_participant_id)
+        except http_requests.RequestException as e:
+            flash(f"Challonge API error: {e}", "error")
+            return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
+
+    db.session.delete(participant)
+    db.session.commit()
+    flash("Participant removed.", "success")
+    return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
+
+
+@admin_bp.route("/events/<int:id>/tournaments/<int:tid>/start", methods=["POST"])
+def tournament_start(id, tid):
+    event = db.session.get(Event, id)
+    if event is None:
+        abort(404)
+    tournament = db.session.get(Tournament, tid)
+    if tournament is None or tournament.event_id != id:
+        abort(404)
+
+    if len(tournament.participants) < 2:
+        flash("A tournament requires at least 2 participants to start.", "error")
+        return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
+
+    if tournament.status != "pending":
+        flash("Tournament is not in a startable state.", "error")
+        return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
+
+    try:
+        challonge.start_tournament(tournament.challonge_url_slug)
+    except http_requests.RequestException as e:
+        flash(f"Challonge API error: {e}", "error")
+        return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
+
+    tournament.status = "underway"
+    tournament.sign_ups_open = False
+    db.session.commit()
+    flash("Tournament started!", "success")
+    return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
+
+
+@admin_bp.route("/events/<int:id>/tournaments/<int:tid>/reset", methods=["POST"])
+def tournament_reset(id, tid):
+    event = db.session.get(Event, id)
+    if event is None:
+        abort(404)
+    tournament = db.session.get(Tournament, tid)
+    if tournament is None or tournament.event_id != id:
+        abort(404)
+
+    try:
+        challonge.reset_tournament(tournament.challonge_url_slug)
+    except http_requests.RequestException as e:
+        flash(f"Challonge API error: {e}", "error")
+        return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
+
+    tournament.status = "pending"
+    db.session.commit()
+    flash("Tournament reset — results cleared.", "warning")
+    return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
+
+
+@admin_bp.route("/events/<int:id>/tournaments/<int:tid>/matches")
+def tournament_matches(id, tid):
+    event = db.session.get(Event, id)
+    if event is None:
+        abort(404)
+    tournament = db.session.get(Tournament, tid)
+    if tournament is None or tournament.event_id != id:
+        abort(404)
+
+    open_matches = []
+    participant_map = {}
+    error = None
+    try:
+        raw_participants = challonge.get_participants(tournament.challonge_url_slug)
+        for item in raw_participants:
+            p = item["participant"]
+            participant_map[p["id"]] = p.get("display_name") or p.get("name", f"Player {p['id']}")
+        open_matches = challonge.get_open_matches(tournament.challonge_url_slug)
+    except http_requests.RequestException as e:
+        error = str(e)
+
+    return render_template(
+        "admin/events/tournaments/matches.html",
+        event=event,
+        tournament=tournament,
+        open_matches=open_matches,
+        participant_map=participant_map,
+        error=error,
+    )
+
+
+@admin_bp.route("/events/<int:id>/tournaments/<int:tid>/matches/<int:match_id>/report", methods=["POST"])
+def tournament_report_match(id, tid, match_id):
+    event = db.session.get(Event, id)
+    if event is None:
+        abort(404)
+    tournament = db.session.get(Tournament, tid)
+    if tournament is None or tournament.event_id != id:
+        abort(404)
+
+    winner_id = request.form.get("winner_id")
+    scores_csv = request.form.get("scores_csv", "").strip()
+
+    reported = False
+    error = None
+    try:
+        challonge.report_match(tournament.challonge_url_slug, match_id, winner_id, scores_csv)
+        reported = True
+    except http_requests.RequestException as e:
+        error = str(e)
+
+    if request.headers.get("HX-Request"):
+        return render_template(
+            "admin/events/tournaments/_match_row.html",
+            match_id=match_id,
+            reported=reported,
+            error=error,
+        )
+
+    if reported:
+        flash("Match result recorded.", "success")
+    else:
+        flash(f"Error reporting match: {error}", "error")
+    return redirect(url_for("admin.tournament_matches", id=id, tid=tid))
+
+
+@admin_bp.route("/events/<int:id>/tournaments/<int:tid>/delete", methods=["POST"])
+def tournament_delete(id, tid):
+    event = db.session.get(Event, id)
+    if event is None:
+        abort(404)
+    tournament = db.session.get(Tournament, tid)
+    if tournament is None or tournament.event_id != id:
+        abort(404)
+
+    if tournament.challonge_url_slug:
+        try:
+            challonge.delete_tournament(tournament.challonge_url_slug)
+        except http_requests.RequestException:
+            pass  # Proceed with local deletion even if Challonge delete fails
+
+    db.session.delete(tournament)
+    db.session.commit()
+    flash("Tournament deleted.", "success")
+    return redirect(url_for("admin.tournaments_list", id=id))

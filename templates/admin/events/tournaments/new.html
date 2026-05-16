@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}New Tournament — {{ event.name }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+
+  <div class="breadcrumbs text-sm mb-4">
+    <ul>
+      <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+      <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+      <li><a href="{{ url_for('admin.tournaments_list', id=event.id) }}">Tournaments</a></li>
+      <li>New Tournament</li>
+    </ul>
+  </div>
+
+  <h1 class="text-3xl font-bold mb-6">Create Tournament</h1>
+
+  <div class="card bg-base-200 shadow">
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('admin.tournament_new', id=event.id) }}">
+        {{ form.hidden_tag() }}
+
+        <div class="form-control mb-4">
+          {{ form.name.label(class="label label-text font-semibold") }}
+          {{ form.name(class="input input-bordered w-full" + (" input-error" if form.name.errors else "")) }}
+          {% for error in form.name.errors %}
+            <span class="label-text-alt text-error">{{ error }}</span>
+          {% endfor %}
+        </div>
+
+        <div class="form-control mb-4">
+          {{ form.game_name.label(class="label label-text font-semibold") }}
+          {{ form.game_name(class="input input-bordered w-full" + (" input-error" if form.game_name.errors else "")) }}
+          {% for error in form.game_name.errors %}
+            <span class="label-text-alt text-error">{{ error }}</span>
+          {% endfor %}
+        </div>
+
+        <div class="form-control mb-4">
+          {{ form.format.label(class="label label-text font-semibold") }}
+          {{ form.format(class="select select-bordered w-full") }}
+        </div>
+
+        <div class="form-control mb-4">
+          {{ form.description.label(class="label label-text font-semibold") }}
+          {{ form.description(class="textarea textarea-bordered w-full", rows=3, placeholder="Optional description shown to participants") }}
+        </div>
+
+        <div class="form-control mb-6">
+          <label class="label cursor-pointer justify-start gap-3">
+            {{ form.sign_ups_open(class="checkbox") }}
+            <span class="label-text font-semibold">{{ form.sign_ups_open.label.text }}</span>
+          </label>
+          <p class="text-sm text-base-content/60 mt-1">
+            When enabled, attendees with a confirmed registration can sign up from their registration page.
+          </p>
+        </div>
+
+        <div class="flex gap-3">
+          <button type="submit" class="btn btn-primary">Create Tournament</button>
+          <a href="{{ url_for('admin.tournaments_list', id=event.id) }}" class="btn btn-ghost">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

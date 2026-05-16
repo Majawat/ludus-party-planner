@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Add Participants — {{ tournament.name }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+  <div class="breadcrumbs text-sm mb-4">
+    <ul>
+      <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+      <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+      <li><a href="{{ url_for('admin.tournaments_list', id=event.id) }}">Tournaments</a></li>
+      <li><a href="{{ url_for('admin.tournament_detail', id=event.id, tid=tournament.id) }}">{{ tournament.name }}</a></li>
+      <li>Add Participants</li>
+    </ul>
+  </div>
+
+  <h1 class="text-3xl font-bold mb-6">Add Confirmed Registrants</h1>
+
+  {% if available %}
+  <div class="card bg-base-200 shadow">
+    <div class="card-body">
+      <p class="text-sm text-base-content/70 mb-4">
+        Select confirmed registrants to add to this tournament. Their display name will be pre-filled
+        from their account name and can be changed on Challonge after the fact.
+      </p>
+      <form method="POST"
+            action="{{ url_for('admin.tournament_add_participants', id=event.id, tid=tournament.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+        <div class="space-y-2 mb-6">
+          {% for reg in available %}
+          <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-300 cursor-pointer">
+            <input type="checkbox" name="registration_ids" value="{{ reg.id }}" class="checkbox checkbox-primary" />
+            <div>
+              <span class="font-semibold">{{ reg.user.name }}</span>
+              <span class="text-sm text-base-content/60 ml-2">{{ reg.ticket_type.name }}</span>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+
+        <div class="flex gap-3">
+          <button type="submit" class="btn btn-primary">Add Selected</button>
+          <a href="{{ url_for('admin.tournament_detail', id=event.id, tid=tournament.id) }}"
+             class="btn btn-ghost">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <div class="card bg-base-200 shadow">
+    <div class="card-body text-center text-base-content/60">
+      <p>All confirmed registrants are already in this tournament, or there are no confirmed registrations yet.</p>
+      <a href="{{ url_for('admin.tournament_detail', id=event.id, tid=tournament.id) }}"
+         class="btn btn-ghost btn-sm mt-3">Back to Tournament</a>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
