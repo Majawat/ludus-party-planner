@@ -44,6 +44,12 @@ class User(UserMixin, db.Model):
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     platform_accounts = db.relationship("UserPlatformAccount", back_populates="user")
+    passkey_credentials = db.relationship(
+        "WebAuthnCredential",
+        backref="user",
+        lazy="select",
+        cascade="all, delete-orphan",
+    )
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -125,6 +131,20 @@ class UserPlatformAccount(db.Model):
     platform_user_id = db.Column(db.Text, nullable=True)
 
     user = db.relationship("User", back_populates="platform_accounts")
+
+
+class WebAuthnCredential(db.Model):
+    __tablename__ = "webauthn_credentials"
+
+    id            = db.Column(db.Integer, primary_key=True)
+    user_id       = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    credential_id = db.Column(db.Text, nullable=False, unique=True)
+    public_key    = db.Column(db.Text, nullable=False)
+    sign_count    = db.Column(db.Integer, nullable=False, default=0)
+    device_name   = db.Column(db.Text, nullable=True)
+    aaguid        = db.Column(db.Text, nullable=True)
+    created_at    = db.Column(db.DateTime, nullable=False, default=utcnow)
+    last_used_at  = db.Column(db.DateTime, nullable=True)
 
 
 class SiteSettings(db.Model):

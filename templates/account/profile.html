@@ -148,5 +148,57 @@
       {% endif %}
     </div>
   </div>
+
+  {# --- Passkeys --- #}
+  {% if passkeys_enabled %}
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title text-lg mb-4">Passkeys</h2>
+      {% if current_user.passkey_credentials %}
+        <div class="space-y-3 mb-4">
+          {% for pk in current_user.passkey_credentials %}
+            <div class="flex items-center justify-between p-3 bg-base-100 rounded-lg">
+              <div>
+                <span class="font-semibold">{{ pk.device_name or "Unnamed device" }}</span>
+                <span class="text-sm text-base-content/70 ml-2">Added {{ pk.created_at.strftime('%Y-%m-%d') }}</span>
+                {% if pk.last_used_at %}
+                  <span class="text-sm text-base-content/70 ml-2">Last used {{ pk.last_used_at.strftime('%Y-%m-%d') }}</span>
+                {% endif %}
+              </div>
+              <form method="POST" action="{{ url_for('auth.passkey_remove', cred_id=pk.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-error btn-outline">Remove</button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-sm text-base-content/70 mb-4">No passkeys registered.</p>
+      {% endif %}
+      <div class="flex gap-2 items-end">
+        <div class="form-control flex-1">
+          <label class="label label-text">Device name (optional)</label>
+          <input type="text" id="passkey-device-name" class="input input-bordered w-full"
+                 placeholder="e.g. iPhone, YubiKey" maxlength="64">
+        </div>
+        <button type="button" id="add-passkey-btn" class="btn btn-primary">Add a Passkey</button>
+      </div>
+      <p id="passkey-error" class="text-error text-sm mt-1 hidden"></p>
+    </div>
+  </div>
+  {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if passkeys_enabled %}
+<script src="{{ url_for('static', filename='js/passkeys.js') }}"></script>
+<script>
+  const addBtn = document.getElementById('add-passkey-btn');
+  if (addBtn) addBtn.addEventListener('click', function () {
+    const name = document.getElementById('passkey-device-name').value;
+    registerPasskey(name);
+  });
+</script>
+{% endif %}
 {% endblock %}

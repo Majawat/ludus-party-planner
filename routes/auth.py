@@ -3,10 +3,23 @@ from openid.consumer.consumer import Consumer, SUCCESS
 from openid.store.memstore import MemoryStore
 from urllib.parse import urlparse
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
-from extensions import oauth
+from extensions import csrf, oauth
+from webauthn import (
+    generate_registration_options,
+    generate_authentication_options,
+    verify_registration_response,
+    verify_authentication_response,
+    options_to_json,
+)
+from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
+from webauthn.helpers.structs import (
+    AuthenticatorSelectionCriteria,
+    UserVerificationRequirement,
+    ResidentKeyRequirement,
+)
 from forms import (
     ForgotPasswordForm, LoginForm, OAuthConfirmLinkForm, RegistrationForm,
     ResetPasswordForm, SteamCompleteRegistrationForm,
@@ -14,7 +27,7 @@ from forms import (
 from mailer import send_password_reset_email, send_verification_email
 from models import (
     EmailVerificationToken, PasswordResetToken, SiteSettings, User,
-    UserPlatformAccount, _hash_token, db, utcnow,
+    UserPlatformAccount, WebAuthnCredential, _hash_token, db, utcnow,
 )
 
 auth_bp = Blueprint("auth", __name__)
@@ -22,6 +35,14 @@ auth_bp = Blueprint("auth", __name__)
 _VALID_PROVIDERS = {"discord", "google"}
 _openid_store = MemoryStore()
 STEAM_OPENID_URL = "https://steamcommunity.com/openid"
+
+
+def _get_rp_id():
+    return request.host.split(":")[0]
+
+
+def _get_origin():
+    return request.host_url.rstrip("/")
 
 _PROVIDER_CONFIG = {
     "discord": {
@@ -113,7 +134,9 @@ def login():
         return redirect(url_for("auth.login"))
     oauth_providers = _get_configured_providers()
     steam_enabled = SiteSettings.get("steam_enabled") == "true"
-    return render_template("auth/login.html", form=form, oauth_providers=oauth_providers, steam_enabled=steam_enabled)
+    passkeys_enabled = SiteSettings.get("passkeys_enabled") == "true"
+    return render_template("auth/login.html", form=form, oauth_providers=oauth_providers,
+                           steam_enabled=steam_enabled, passkeys_enabled=passkeys_enabled)
 
 
 @auth_bp.route("/logout")
@@ -457,3 +480,134 @@ def steam_complete_registration():
         return redirect(url_for("account.dashboard"))
 
     return render_template("auth/steam_complete_registration.html", form=form)
+
+
+# ---------------------------------------------------------------------------
+# WebAuthn / Passkeys routes
+# ---------------------------------------------------------------------------
+
+@auth_bp.route("/auth/passkey/register/begin")
+@csrf.exempt
+@login_required
+def passkey_register_begin():
+    if SiteSettings.get("passkeys_enabled") != "true":
+        abort(404)
+    options = generate_registration_options(
+        rp_id=_get_rp_id(),
+        rp_name=SiteSettings.get("site_name", "Ludus Party Planner"),
+        user_id=str(current_user.id).encode(),
+        user_name=current_user.email,
+        user_display_name=current_user.name,
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            resident_key=ResidentKeyRequirement.PREFERRED,
+            user_verification=UserVerificationRequirement.PREFERRED,
+        ),
+        exclude_credentials=[
+            {"id": base64url_to_bytes(c.credential_id), "type": "public-key"}
+            for c in current_user.passkey_credentials
+        ],
+    )
+    session["webauthn_register_challenge"] = options.challenge.hex()
+    return options_to_json(options), 200, {"Content-Type": "application/json"}
+
+
+@auth_bp.route("/auth/passkey/register/complete", methods=["POST"])
+@csrf.exempt
+@login_required
+def passkey_register_complete():
+    if SiteSettings.get("passkeys_enabled") != "true":
+        abort(404)
+    challenge_hex = session.pop("webauthn_register_challenge", None)
+    if not challenge_hex:
+        return {"error": "No challenge"}, 400
+    try:
+        verification = verify_registration_response(
+            credential=request.get_json(),
+            expected_challenge=bytes.fromhex(challenge_hex),
+            expected_rp_id=_get_rp_id(),
+            expected_origin=_get_origin(),
+            require_user_verification=False,
+        )
+    except Exception as e:
+        current_app.logger.warning(f"Passkey registration failed: {e}")
+        return {"error": "Verification failed"}, 400
+    body = request.get_json()
+    device_name = (body.get("device_name", "") or "").strip()[:64] or None
+    cred = WebAuthnCredential(
+        user_id=current_user.id,
+        credential_id=bytes_to_base64url(verification.credential_id),
+        public_key=bytes_to_base64url(verification.credential_public_key),
+        sign_count=verification.sign_count,
+        device_name=device_name,
+        aaguid=str(verification.aaguid) if verification.aaguid else None,
+    )
+    db.session.add(cred)
+    db.session.commit()
+    return {"ok": True}
+
+
+@auth_bp.route("/auth/passkey/login/begin")
+@csrf.exempt
+def passkey_login_begin():
+    if SiteSettings.get("passkeys_enabled") != "true":
+        abort(404)
+    options = generate_authentication_options(
+        rp_id=_get_rp_id(),
+        user_verification=UserVerificationRequirement.PREFERRED,
+    )
+    session["webauthn_auth_challenge"] = options.challenge.hex()
+    return options_to_json(options), 200, {"Content-Type": "application/json"}
+
+
+@auth_bp.route("/auth/passkey/login/complete", methods=["POST"])
+@csrf.exempt
+def passkey_login_complete():
+    if SiteSettings.get("passkeys_enabled") != "true":
+        abort(404)
+    challenge_hex = session.pop("webauthn_auth_challenge", None)
+    if not challenge_hex:
+        return {"error": "No challenge"}, 400
+    body = request.get_json()
+    raw_id = body.get("rawId") or body.get("id")
+    cred = WebAuthnCredential.query.filter_by(credential_id=raw_id).first()
+    if not cred:
+        return {"error": "Credential not found"}, 400
+    try:
+        verification = verify_authentication_response(
+            credential=body,
+            expected_challenge=bytes.fromhex(challenge_hex),
+            expected_rp_id=_get_rp_id(),
+            expected_origin=_get_origin(),
+            credential_public_key=base64url_to_bytes(cred.public_key),
+            credential_current_sign_count=cred.sign_count,
+            require_user_verification=False,
+        )
+    except Exception as e:
+        current_app.logger.warning(f"Passkey auth failed: {e}")
+        return {"error": "Verification failed"}, 400
+    cred.sign_count = verification.new_sign_count
+    cred.last_used_at = utcnow()
+    db.session.commit()
+    if getattr(cred.user, "totp_secret", None):
+        session["pending_2fa_user_id"] = cred.user.id
+        return {"ok": True, "redirect": url_for("auth.verify_2fa")}
+    login_user(cred.user)
+    return {"ok": True, "redirect": url_for("account.dashboard")}
+
+
+@auth_bp.route("/auth/passkey/remove/<int:cred_id>", methods=["POST"])
+@login_required
+def passkey_remove(cred_id):
+    if SiteSettings.get("passkeys_enabled") != "true":
+        abort(404)
+    cred = db.session.get(WebAuthnCredential, cred_id)
+    if cred is None or cred.user_id != current_user.id:
+        abort(403)
+    cred_count = WebAuthnCredential.query.filter_by(user_id=current_user.id).count()
+    if cred_count <= 1 and not current_user.has_password:
+        flash("You must set a password before removing your last passkey.", "error")
+        return redirect(url_for("account.profile"))
+    db.session.delete(cred)
+    db.session.commit()
+    flash("Passkey removed.", "success")
+    return redirect(url_for("account.profile"))
