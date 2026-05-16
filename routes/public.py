@@ -1,8 +1,9 @@
-from flask import Blueprint, render_template, abort, flash, redirect, url_for
+from flask import Blueprint, render_template, abort, flash, redirect, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select, func
 
 from forms import GameSuggestionForm
+from game_lookup import get_bgg_game, get_steam_game, search_games
 from models import db, Event, EventAnnouncement, EventScheduleItem, GameSuggestion, GameSuggestionVote, PotluckItem, Registration, SiteSettings, utcnow
 
 public_bp = Blueprint("public", __name__)
@@ -151,10 +152,37 @@ def suggestion_add(slug):
 
     form = GameSuggestionForm()
     if form.validate_on_submit():
+        bgg_id = request.form.get("bgg_id", type=int)
+        steam_app_id = request.form.get("steam_app_id", type=int)
+
+        image_url = description = year = min_p = max_p = None
+        authoritative_name = form.game_name.data.strip()
+
+        if bgg_id:
+            try:
+                details = get_bgg_game(bgg_id)
+                if details:
+                    authoritative_name = details["name"]
+                    image_url = details.get("image_url")
+                    description = details.get("description")
+                    year = details.get("year")
+                    min_p = details.get("min_players")
+                    max_p = details.get("max_players")
+            except Exception:
+                pass
+        elif steam_app_id:
+            try:
+                details = get_steam_game(steam_app_id)
+                if details:
+                    image_url = details.get("image_url")
+                    description = details.get("description")
+            except Exception:
+                pass
+
         duplicate = GameSuggestion.query.filter_by(
             event_id=event.id,
             suggested_by=current_user.id,
-            game_name=form.game_name.data.strip(),
+            game_name=authoritative_name,
         ).first()
         if duplicate:
             flash("You have already suggested that game for this event.", "warning")
@@ -162,8 +190,15 @@ def suggestion_add(slug):
             suggestion = GameSuggestion(
                 event_id=event.id,
                 suggested_by=current_user.id,
-                game_name=form.game_name.data.strip(),
+                game_name=authoritative_name,
+                bgg_id=bgg_id,
+                steam_app_id=steam_app_id,
                 suggested_datetime=form.suggested_datetime.data or None,
+                game_image_url=image_url,
+                game_description=description,
+                game_year=year,
+                game_min_players=min_p,
+                game_max_players=max_p,
             )
             db.session.add(suggestion)
             db.session.commit()
@@ -208,3 +243,17 @@ def suggestion_vote(slug, sid):
         db.session.commit()
 
     return redirect(url_for("public.event_detail", slug=slug))
+
+
+@public_bp.route("/games/search")
+@login_required
+def game_search():
+    if not request.headers.get("HX-Request"):
+        abort(400)
+    q = request.args.get("q", "").strip()
+    source = request.args.get("source", "all")
+    try:
+        results = search_games(q, source) if len(q) >= 2 else []
+    except Exception:
+        results = []
+    return render_template("public/game_search_results.html", results=results)

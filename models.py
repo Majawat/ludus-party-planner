@@ -391,6 +391,11 @@ class GameSuggestion(db.Model):
     game_name = db.Column(db.Text, nullable=False)
     bgg_id = db.Column(db.Integer, nullable=True)
     steam_app_id = db.Column(db.Integer, nullable=True)
+    game_image_url = db.Column(db.Text, nullable=True)
+    game_description = db.Column(db.Text, nullable=True)
+    game_year = db.Column(db.Integer, nullable=True)
+    game_min_players = db.Column(db.Integer, nullable=True)
+    game_max_players = db.Column(db.Integer, nullable=True)
     suggested_datetime = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
 

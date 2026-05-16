@@ -166,29 +166,58 @@
             {% for row in suggestions %}
               {% set suggestion = row[0] %}
               {% set vote_count = row[1] %}
-              <div class="flex items-center gap-3 py-1">
-                <div class="flex-1">
-                  <span class="font-semibold text-sm">{{ suggestion.game_name }}</span>
-                  {% if suggestion.suggested_datetime %}
-                    <span class="text-xs text-base-content/50 ml-2">
-                      {{ suggestion.suggested_datetime.strftime('%-m/%-d %-I:%M %p') }}
-                    </span>
+              <div class="py-2">
+                <div class="flex items-start gap-3">
+                  {% if suggestion.game_image_url %}
+                    <img src="{{ suggestion.game_image_url }}" alt="{{ suggestion.game_name }}"
+                         class="h-12 w-auto rounded flex-shrink-0 mt-0.5">
                   {% endif %}
-                  <span class="text-xs text-base-content/40 ml-1">— {{ suggestion.suggester.name }}</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="badge badge-ghost badge-sm">{{ vote_count }} vote{{ 's' if vote_count != 1 else '' }}</span>
-                  {% if can_suggest %}
-                    <form method="POST"
-                          action="{{ url_for('public.suggestion_vote', slug=event.slug, sid=suggestion.id) }}">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                      {% if suggestion.id in user_voted %}
-                        <button type="submit" class="btn btn-xs btn-primary">&#9650; Voted</button>
-                      {% else %}
-                        <button type="submit" class="btn btn-xs btn-outline">&#9650; Vote</button>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="font-semibold text-sm">{{ suggestion.game_name }}</span>
+                      {% if suggestion.game_year %}
+                        <span class="text-xs text-base-content/50">({{ suggestion.game_year }})</span>
                       {% endif %}
-                    </form>
-                  {% endif %}
+                      {% if suggestion.game_min_players and suggestion.game_max_players %}
+                        <span class="badge badge-ghost badge-xs">{{ suggestion.game_min_players }}–{{ suggestion.game_max_players }} players</span>
+                      {% endif %}
+                      {% if suggestion.bgg_id %}
+                        <a href="https://boardgamegeek.com/boardgame/{{ suggestion.bgg_id }}"
+                           target="_blank" rel="noopener"
+                           class="text-xs text-success hover:underline">BGG ↗</a>
+                      {% endif %}
+                      {% if suggestion.steam_app_id %}
+                        <a href="https://store.steampowered.com/app/{{ suggestion.steam_app_id }}"
+                           target="_blank" rel="noopener"
+                           class="text-xs text-info hover:underline">Steam ↗</a>
+                      {% endif %}
+                    </div>
+                    {% if suggestion.game_description %}
+                      <p class="text-xs text-base-content/60 mt-0.5 line-clamp-2">
+                        {{ suggestion.game_description[:120] }}{% if suggestion.game_description | length > 120 %}…{% endif %}
+                      </p>
+                    {% endif %}
+                    <div class="text-xs text-base-content/40 mt-0.5">
+                      {% if suggestion.suggested_datetime %}
+                        <span class="mr-2">{{ suggestion.suggested_datetime.strftime('%-m/%-d %-I:%M %p') }}</span>
+                      {% endif %}
+                      — {{ suggestion.suggester.name }}
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 flex-shrink-0">
+                    <span class="badge badge-ghost badge-sm">{{ vote_count }} vote{{ 's' if vote_count != 1 else '' }}</span>
+                    {% if can_suggest %}
+                      <form method="POST"
+                            action="{{ url_for('public.suggestion_vote', slug=event.slug, sid=suggestion.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        {% if suggestion.id in user_voted %}
+                          <button type="submit" class="btn btn-xs btn-primary">&#9650; Voted</button>
+                        {% else %}
+                          <button type="submit" class="btn btn-xs btn-outline">&#9650; Vote</button>
+                        {% endif %}
+                      </form>
+                    {% endif %}
+                  </div>
                 </div>
               </div>
               {% if not loop.last %}<div class="border-t border-base-300"></div>{% endif %}
@@ -205,10 +234,39 @@
               <form method="POST"
                     action="{{ url_for('public.suggestion_add', slug=event.slug) }}">
                 {{ suggestion_form.hidden_tag() }}
+                <input type="hidden" name="bgg_id" id="suggest-bgg-id">
+                <input type="hidden" name="steam_app_id" id="suggest-steam-id">
+
+                <div class="mb-3">
+                  <input type="text" id="game-search-input" name="q"
+                    class="input input-bordered input-sm w-full mb-2"
+                    placeholder="Search BGG or Steam…"
+                    hx-get="/games/search"
+                    hx-trigger="keyup changed delay:400ms"
+                    hx-target="#game-search-results"
+                    hx-include="[name=source]"
+                    autocomplete="off">
+                  <div class="flex gap-3 text-sm mb-2">
+                    <label class="flex items-center gap-1 cursor-pointer">
+                      <input type="radio" name="source" value="all" checked class="radio radio-xs"> All
+                    </label>
+                    <label class="flex items-center gap-1 cursor-pointer">
+                      <input type="radio" name="source" value="bgg" class="radio radio-xs"> BGG
+                    </label>
+                    <label class="flex items-center gap-1 cursor-pointer">
+                      <input type="radio" name="source" value="steam" class="radio radio-xs"> Steam
+                    </label>
+                  </div>
+                  <div id="game-search-results"></div>
+                </div>
+
+                <div id="selected-game-display" class="text-xs text-base-content/50 mb-2">No game selected yet</div>
+
                 <div class="flex gap-2 flex-wrap items-end">
                   <div class="form-control flex-1 min-w-40">
                     {{ suggestion_form.game_name(class="input input-bordered input-sm w-full",
-                       placeholder="e.g. Twilight Imperium") }}
+                       placeholder="e.g. Twilight Imperium",
+                       id="suggest-game-name") }}
                   </div>
                   {{ suggestion_form.suggested_datetime(class="input input-bordered input-sm") }}
                   {{ suggestion_form.submit(class="btn btn-primary btn-sm") }}
@@ -216,6 +274,17 @@
               </form>
             </div>
           </details>
+
+          <script>
+          function selectGame(name, bggId, steamId) {
+            document.getElementById('suggest-game-name').value = name;
+            document.getElementById('suggest-bgg-id').value = bggId || '';
+            document.getElementById('suggest-steam-id').value = steamId || '';
+            document.getElementById('selected-game-display').textContent = name;
+            document.getElementById('game-search-results').innerHTML = '';
+            document.getElementById('game-search-input').value = '';
+          }
+          </script>
         {% endif %}
 
       </div>

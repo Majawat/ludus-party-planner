@@ -142,6 +142,7 @@ def create_app(test_config=None):
         "paypal_webhook_id": "",
         "challonge_api_key": "",
         "challonge_username": "",
+        "itad_api_key": "",
     }
 
     @app.cli.command("seed-settings")
