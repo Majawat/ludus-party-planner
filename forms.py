@@ -250,6 +250,8 @@ class AdminSettingsForm(FlaskForm):
     challonge_api_key = StringField("Challonge API Key", validators=[Optional()])
     challonge_username = StringField("Challonge Username", validators=[Optional()])
     passkeys_enabled = BooleanField("Enable Passkeys")
+    webauthn_rp_id = StringField("WebAuthn RP ID", validators=[Optional()])
+    webauthn_origin = StringField("WebAuthn Origin", validators=[Optional()])
 
 
 class TournamentForm(FlaskForm):

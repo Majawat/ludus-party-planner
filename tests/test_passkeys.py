@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from models import SiteSettings, User, UserPlatformAccount, WebAuthnCredential, db as _db, utcnow
+from routes.auth import _get_rp_id, _get_origin
 
 
 # ---------------------------------------------------------------------------
@@ -344,3 +345,61 @@ class TestPasskeyRemove:
         assert resp.status_code == 403
         with app.app_context():
             assert WebAuthnCredential.query.get(cred_id) is not None
+
+
+# ---------------------------------------------------------------------------
+# Malformed JSON guards (FIX 3)
+# ---------------------------------------------------------------------------
+
+class TestMalformedJson:
+    def test_login_complete_returns_400_on_missing_json(self, app, client):
+        _enable_passkeys(app)
+        with client.session_transaction() as sess:
+            sess["webauthn_auth_challenge"] = b"authtestchallenge".hex()
+        # POST with no JSON body (wrong Content-Type)
+        resp = client.post("/auth/passkey/login/complete", data="not json")
+        assert resp.status_code == 400
+        data = json.loads(resp.data)
+        assert "error" in data
+
+    def test_register_complete_returns_400_on_missing_json(self, app, client, regular_user):
+        _enable_passkeys(app)
+        _login(client, regular_user, "userpass123")
+        with client.session_transaction() as sess:
+            sess["webauthn_register_challenge"] = b"testchallenge123".hex()
+        # POST with no JSON body
+        resp = client.post("/auth/passkey/register/complete", data="not json")
+        assert resp.status_code == 400
+        data = json.loads(resp.data)
+        assert "error" in data
+
+
+# ---------------------------------------------------------------------------
+# Origin / RP ID override (FIX 2)
+# ---------------------------------------------------------------------------
+
+class TestOriginRpIdSettings:
+    def test_get_rp_id_prefers_site_setting(self, app):
+        with app.app_context():
+            SiteSettings.set("webauthn_rp_id", "mylan.party")
+        with app.test_request_context("/", environ_base={"HTTP_HOST": "internal-host:5000"}):
+            assert _get_rp_id() == "mylan.party"
+
+    def test_get_rp_id_falls_back_to_request_host(self, app):
+        with app.app_context():
+            SiteSettings.set("webauthn_rp_id", "")
+        with app.test_request_context("/", environ_overrides={"HTTP_HOST": "internal-host:5000"}):
+            assert _get_rp_id() == "internal-host"
+
+    def test_get_origin_prefers_site_setting(self, app):
+        with app.app_context():
+            SiteSettings.set("webauthn_origin", "https://mylan.party")
+        with app.test_request_context("/", environ_base={"HTTP_HOST": "internal-host:5000"}):
+            assert _get_origin() == "https://mylan.party"
+
+    def test_get_origin_falls_back_to_request_host_url(self, app):
+        with app.app_context():
+            SiteSettings.set("webauthn_origin", "")
+        with app.test_request_context("/", environ_overrides={"HTTP_HOST": "internal-host:5000"}):
+            origin = _get_origin()
+            assert "internal-host" in origin

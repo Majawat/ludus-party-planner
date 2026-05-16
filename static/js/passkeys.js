@@ -19,30 +19,31 @@ function base64urlToBuffer(base64url) {
     return buf;
 }
 
-// Fields that must stay as strings (not converted to ArrayBuffer).
-const _STRING_FIELDS = new Set([
-    'type', 'alg', 'attestation', 'authenticatorAttachment',
-    'residentKey', 'userVerification', 'rpId', 'fmt',
-]);
+// Decode only the specific binary fields needed for navigator.credentials.create().
+function _prepareCredentialCreateOptions(options) {
+    options.challenge = base64urlToBuffer(options.challenge);
+    if (options.user && options.user.id) {
+        options.user.id = base64urlToBuffer(options.user.id);
+    }
+    if (options.excludeCredentials) {
+        options.excludeCredentials = options.excludeCredentials.map(c => ({
+            ...c,
+            id: base64urlToBuffer(c.id),
+        }));
+    }
+    return options;
+}
 
-// Recursively decode base64url strings in a WebAuthn options object to ArrayBuffers.
-// Only converts values that look like binary data (non-empty strings in known-binary positions).
-function _decodeOptions(obj, key) {
-    if (obj === null || obj === undefined) return obj;
-    if (typeof obj === 'number' || typeof obj === 'boolean') return obj;
-    if (typeof obj === 'string') {
-        // Keep string-typed fields as strings; convert binary fields to ArrayBuffer.
-        if (key && _STRING_FIELDS.has(key)) return obj;
-        if (obj.length === 0) return obj;
-        try { return base64urlToBuffer(obj); } catch (_) { return obj; }
+// Decode only the specific binary fields needed for navigator.credentials.get().
+function _prepareCredentialGetOptions(options) {
+    options.challenge = base64urlToBuffer(options.challenge);
+    if (options.allowCredentials) {
+        options.allowCredentials = options.allowCredentials.map(c => ({
+            ...c,
+            id: base64urlToBuffer(c.id),
+        }));
     }
-    if (Array.isArray(obj)) return obj.map(function (item) { return _decodeOptions(item, null); });
-    if (typeof obj === 'object') {
-        const result = {};
-        for (const k of Object.keys(obj)) result[k] = _decodeOptions(obj[k], k);
-        return result;
-    }
-    return obj;
+    return options;
 }
 
 function _showError(id, msg) {
@@ -57,9 +58,9 @@ async function registerPasskey(deviceName) {
         const optResp = await fetch('/auth/passkey/register/begin');
         if (!optResp.ok) { _showError('passkey-error', 'Server error starting registration.'); return; }
         const opts = await optResp.json();
-        const decoded = _decodeOptions(opts, null);
+        _prepareCredentialCreateOptions(opts);
 
-        const credential = await navigator.credentials.create({ publicKey: decoded });
+        const credential = await navigator.credentials.create({ publicKey: opts });
         if (!credential) { _showError('passkey-error', 'Passkey creation was cancelled.'); return; }
 
         const payload = {
@@ -93,9 +94,9 @@ async function loginWithPasskey() {
         const optResp = await fetch('/auth/passkey/login/begin');
         if (!optResp.ok) { _showError('passkey-error', 'Server error starting login.'); return; }
         const opts = await optResp.json();
-        const decoded = _decodeOptions(opts, null);
+        _prepareCredentialGetOptions(opts);
 
-        const assertion = await navigator.credentials.get({ publicKey: decoded });
+        const assertion = await navigator.credentials.get({ publicKey: opts });
         if (!assertion) { _showError('passkey-error', 'Passkey login was cancelled.'); return; }
 
         const payload = {

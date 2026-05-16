@@ -38,10 +38,16 @@ STEAM_OPENID_URL = "https://steamcommunity.com/openid"
 
 
 def _get_rp_id():
+    configured = SiteSettings.get("webauthn_rp_id", "").strip()
+    if configured:
+        return configured
     return request.host.split(":")[0]
 
 
 def _get_origin():
+    configured = SiteSettings.get("webauthn_origin", "").strip()
+    if configured:
+        return configured.rstrip("/")
     return request.host_url.rstrip("/")
 
 _PROVIDER_CONFIG = {
@@ -520,9 +526,12 @@ def passkey_register_complete():
     challenge_hex = session.pop("webauthn_register_challenge", None)
     if not challenge_hex:
         return {"error": "No challenge"}, 400
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return {"error": "Invalid JSON"}, 400
     try:
         verification = verify_registration_response(
-            credential=request.get_json(),
+            credential=body,
             expected_challenge=bytes.fromhex(challenge_hex),
             expected_rp_id=_get_rp_id(),
             expected_origin=_get_origin(),
@@ -531,7 +540,6 @@ def passkey_register_complete():
     except Exception as e:
         current_app.logger.warning(f"Passkey registration failed: {e}")
         return {"error": "Verification failed"}, 400
-    body = request.get_json()
     device_name = (body.get("device_name", "") or "").strip()[:64] or None
     cred = WebAuthnCredential(
         user_id=current_user.id,
@@ -567,7 +575,9 @@ def passkey_login_complete():
     challenge_hex = session.pop("webauthn_auth_challenge", None)
     if not challenge_hex:
         return {"error": "No challenge"}, 400
-    body = request.get_json()
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return {"error": "Invalid JSON"}, 400
     raw_id = body.get("rawId") or body.get("id")
     cred = WebAuthnCredential.query.filter_by(credential_id=raw_id).first()
     if not cred:

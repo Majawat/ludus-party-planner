@@ -266,11 +266,29 @@
           Enable WebAuthn passkey authentication. Users can register hardware keys,
           Face ID, Touch ID, or Windows Hello as a login method. Requires HTTPS.
         </p>
-        <div class="form-control">
+        <div class="form-control mb-4">
           <label class="label cursor-pointer justify-start gap-3">
             {{ form.passkeys_enabled(class="checkbox") }}
             <span class="label-text font-semibold">{{ form.passkeys_enabled.label.text }}</span>
           </label>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div class="form-control">
+            {{ form.webauthn_rp_id.label(class="label label-text font-semibold") }}
+            {{ form.webauthn_rp_id(class="input input-bordered w-full", placeholder="e.g. example.com") }}
+          </div>
+          <div class="form-control">
+            {{ form.webauthn_origin.label(class="label label-text font-semibold") }}
+            {{ form.webauthn_origin(class="input input-bordered w-full", placeholder="e.g. https://example.com") }}
+          </div>
+        </div>
+        <div class="alert alert-warning text-sm">
+          <span>
+            <strong>Required when running behind a reverse proxy.</strong>
+            Set RP ID to your public domain (e.g. <code>example.com</code>) and Origin
+            to your full HTTPS URL (e.g. <code>https://example.com</code>).
+            Without these, passkey verification will fail in production.
+          </span>
         </div>
       </div>
     </div>

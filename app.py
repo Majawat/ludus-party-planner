@@ -144,6 +144,8 @@ def create_app(test_config=None):
         "challonge_username": "",
         "itad_api_key": "",
         "passkeys_enabled": "false",
+        "webauthn_rp_id": "",
+        "webauthn_origin": "",
     }
 
     @app.cli.command("seed-settings")
