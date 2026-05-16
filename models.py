@@ -212,6 +212,11 @@ class Event(db.Model):
         order_by="EventQuestion.display_order",
         cascade="all, delete-orphan",
     )
+    tournaments = db.relationship(
+        "Tournament",
+        back_populates="event",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def capacity(self):
@@ -445,6 +450,45 @@ class RegistrationAnswer(db.Model):
 
     registration = db.relationship("Registration", back_populates="answers")
     question = db.relationship("EventQuestion", back_populates="answers")
+
+
+class Tournament(db.Model):
+    __tablename__ = "tournaments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
+    name = db.Column(db.Text, nullable=False)
+    game_name = db.Column(db.Text, nullable=False)
+    format = db.Column(db.Text, nullable=False, default="single elimination")
+    description = db.Column(db.Text, nullable=True)
+    challonge_id = db.Column(db.Integer, nullable=True)
+    challonge_url_slug = db.Column(db.Text, nullable=True)
+    challonge_full_url = db.Column(db.Text, nullable=True)
+    status = db.Column(db.Text, nullable=False, default="pending")
+    sign_ups_open = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+
+    event = db.relationship("Event", back_populates="tournaments")
+    participants = db.relationship(
+        "TournamentParticipant",
+        back_populates="tournament",
+        cascade="all, delete-orphan",
+    )
+
+
+class TournamentParticipant(db.Model):
+    __tablename__ = "tournament_participants"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tournament_id = db.Column(db.Integer, db.ForeignKey("tournaments.id"), nullable=False)
+    registration_id = db.Column(db.Integer, db.ForeignKey("registrations.id"), nullable=True)
+    challonge_participant_id = db.Column(db.Integer, nullable=True)
+    display_name = db.Column(db.Text, nullable=False)
+    seed = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+
+    tournament = db.relationship("Tournament", back_populates="participants")
+    registration = db.relationship("Registration", backref="tournament_participations")
 
 
 def unique_field_name(question_text: str, event_id: int, exclude_id: int = None) -> str:

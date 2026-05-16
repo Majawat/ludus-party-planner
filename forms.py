@@ -247,6 +247,22 @@ class AdminSettingsForm(FlaskForm):
     paypal_client_secret = StringField("PayPal Client Secret", validators=[Optional()])
     paypal_mode = SelectField("PayPal Mode", choices=[("sandbox", "Sandbox"), ("live", "Live")], validate_choice=False)
     paypal_webhook_id = StringField("PayPal Webhook ID", validators=[Optional()])
+    challonge_api_key = StringField("Challonge API Key", validators=[Optional()])
+    challonge_username = StringField("Challonge Username", validators=[Optional()])
+
+
+class TournamentForm(FlaskForm):
+    name = StringField("Tournament Name", validators=[DataRequired()])
+    game_name = StringField("Game", validators=[DataRequired()])
+    format = SelectField("Format", choices=[
+        ("single elimination", "Single Elimination"),
+        ("double elimination", "Double Elimination"),
+        ("round robin", "Round Robin"),
+        ("swiss", "Swiss"),
+    ])
+    description = TextAreaField("Description", validators=[Optional()])
+    sign_ups_open = BooleanField("Allow Attendee Self Sign-Up")
+    submit = SubmitField("Create Tournament")
 
 
 class SetPasswordForm(FlaskForm):
