@@ -1,0 +1,126 @@
+// WebAuthn / Passkeys — Ludus Party Planner
+// Uses the Web Authentication API and communicates with the server
+// using base64url-encoded binary fields (as emitted by py_webauthn).
+
+function bufferToBase64url(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let str = '';
+    for (const b of bytes) str += String.fromCharCode(b);
+    return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function base64urlToBuffer(base64url) {
+    const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
+    const binary = atob(padded);
+    const buf = new ArrayBuffer(binary.length);
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return buf;
+}
+
+// Decode only the specific binary fields needed for navigator.credentials.create().
+function _prepareCredentialCreateOptions(options) {
+    options.challenge = base64urlToBuffer(options.challenge);
+    if (options.user && options.user.id) {
+        options.user.id = base64urlToBuffer(options.user.id);
+    }
+    if (options.excludeCredentials) {
+        options.excludeCredentials = options.excludeCredentials.map(c => ({
+            ...c,
+            id: base64urlToBuffer(c.id),
+        }));
+    }
+    return options;
+}
+
+// Decode only the specific binary fields needed for navigator.credentials.get().
+function _prepareCredentialGetOptions(options) {
+    options.challenge = base64urlToBuffer(options.challenge);
+    if (options.allowCredentials) {
+        options.allowCredentials = options.allowCredentials.map(c => ({
+            ...c,
+            id: base64urlToBuffer(c.id),
+        }));
+    }
+    return options;
+}
+
+function _showError(id, msg) {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = msg; el.classList.remove('hidden'); }
+}
+
+// ---------- Registration (from profile page) ----------
+
+async function registerPasskey(deviceName) {
+    try {
+        const optResp = await fetch('/auth/passkey/register/begin');
+        if (!optResp.ok) { _showError('passkey-error', 'Server error starting registration.'); return; }
+        const opts = await optResp.json();
+        _prepareCredentialCreateOptions(opts);
+
+        const credential = await navigator.credentials.create({ publicKey: opts });
+        if (!credential) { _showError('passkey-error', 'Passkey creation was cancelled.'); return; }
+
+        const payload = {
+            id: credential.id,
+            rawId: bufferToBase64url(credential.rawId),
+            type: credential.type,
+            device_name: deviceName || '',
+            response: {
+                clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
+                attestationObject: bufferToBase64url(credential.response.attestationObject),
+            },
+        };
+
+        const verResp = await fetch('/auth/passkey/register/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const result = await verResp.json();
+        if (result.ok) { location.reload(); }
+        else { _showError('passkey-error', result.error || 'Registration failed.'); }
+    } catch (e) {
+        _showError('passkey-error', e.message || 'An error occurred.');
+    }
+}
+
+// ---------- Authentication (from login page) ----------
+
+async function loginWithPasskey() {
+    try {
+        const optResp = await fetch('/auth/passkey/login/begin');
+        if (!optResp.ok) { _showError('passkey-error', 'Server error starting login.'); return; }
+        const opts = await optResp.json();
+        _prepareCredentialGetOptions(opts);
+
+        const assertion = await navigator.credentials.get({ publicKey: opts });
+        if (!assertion) { _showError('passkey-error', 'Passkey login was cancelled.'); return; }
+
+        const payload = {
+            id: assertion.id,
+            rawId: bufferToBase64url(assertion.rawId),
+            type: assertion.type,
+            response: {
+                clientDataJSON: bufferToBase64url(assertion.response.clientDataJSON),
+                authenticatorData: bufferToBase64url(assertion.response.authenticatorData),
+                signature: bufferToBase64url(assertion.response.signature),
+                userHandle: assertion.response.userHandle
+                    ? bufferToBase64url(assertion.response.userHandle) : null,
+            },
+        };
+
+        const verResp = await fetch('/auth/passkey/login/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const result = await verResp.json();
+        if (result.ok) { window.location.href = result.redirect; }
+        else { _showError('passkey-error', result.error || 'Login failed.'); }
+    } catch (e) {
+        _showError('passkey-error', e.message || 'An error occurred.');
+    }
+}

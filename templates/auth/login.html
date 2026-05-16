@@ -48,5 +48,24 @@
     Login with Steam
   </a>
   {% endif %}
+
+  {% if passkeys_enabled %}
+  <div class="divider text-xs">Passkeys</div>
+  <button type="button" id="passkey-login-btn" class="btn btn-outline w-full">
+    Sign in with a Passkey
+  </button>
+  <p id="passkey-error" class="text-error text-sm mt-1 hidden"></p>
+  {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if passkeys_enabled %}
+<script src="{{ url_for('static', filename='js/passkeys.js') }}"></script>
+<script>
+  document.getElementById('passkey-login-btn').addEventListener('click', function () {
+    loginWithPasskey();
+  });
+</script>
+{% endif %}
 {% endblock %}

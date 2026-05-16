@@ -386,6 +386,9 @@ paypal_webhook_id                = ""
 challonge_api_key                = ""
 challonge_username               = ""
 itad_api_key                     = ""
+passkeys_enabled                 = "false"
+webauthn_rp_id                   = ""   -- e.g. "yourlan.party"; required behind a reverse proxy
+webauthn_origin                  = ""   -- e.g. "https://yourlan.party"; required behind a reverse proxy
 ```
 
 The first-run wizard also writes `setup_complete = "true"` when onboarding is done.

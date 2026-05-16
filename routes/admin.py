@@ -28,6 +28,7 @@ _BOOL_SETTINGS = {
     "steam_enabled",
     "stripe_enabled",
     "paypal_enabled",
+    "passkeys_enabled",
 }
 
 
