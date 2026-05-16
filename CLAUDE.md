@@ -88,6 +88,7 @@ ludus/
 ├── challonge.py            # Challonge API client (requests-based)
 ├── game_lookup.py          # BGG XML API and Steam store API search/detail functions
 ├── payments.py             # Stripe and PayPal integration helpers
+├── activity.py             # Admin action logging helper (log function only)
 │
 ├── routes/
 │   ├── __init__.py         # register_blueprints(app) — registers all five blueprints
@@ -119,10 +120,13 @@ ludus/
 │   │   ├── forgot_password.html
 │   │   ├── reset_password.html
 │   │   ├── oauth_confirm_link.html
-│   │   └── steam_complete_registration.html
+│   │   ├── steam_complete_registration.html
+│   │   └── 2fa_verify.html            # 2FA challenge on login [planned-v1.4]
 │   ├── account/
 │   │   ├── dashboard.html
 │   │   ├── profile.html
+│   │   ├── security.html              # 2FA settings page [planned-v1.4]
+│   │   ├── security_setup.html        # 2FA QR code + verify [planned-v1.4]
 │   │   ├── register_event.html
 │   │   ├── my_registration.html
 │   │   ├── seats.html
@@ -132,6 +136,7 @@ ludus/
 │       ├── settings.html
 │       ├── email.html
 │       ├── equipment.html
+│       ├── logs.html                  # Activity log [planned-v1.3]
 │       ├── events/
 │       │   ├── list.html
 │       │   ├── detail.html
@@ -249,6 +254,16 @@ webhook signatures via the PayPal webhook verification endpoint. All credentials
 are read from `SiteSettings` at call time. Stripe and PayPal can be independently
 enabled/disabled via `stripe_enabled` and `paypal_enabled` site settings.
 
+### activity.py
+Single helper function used by admin routes to record write actions.
+`log(action, target_type=None, target_id=None, details=None)` reads
+`current_user` from Flask-Login context to populate `user_id`, captures
+`request.remote_addr` for `ip_address`, and inserts an `ActivityLog` row.
+`details` is a dict that the function serializes to JSON before storing.
+Only the curated list of admin write actions defined in the roadmap is logged —
+not every database write. Import and call `log(...)` at the end of each listed
+admin route handler, after the DB commit.
+
 ---
 
 ## Database Schema
@@ -270,6 +285,9 @@ is_admin            BOOLEAN DEFAULT FALSE NOT NULL
 newsletter_opt_in   BOOLEAN DEFAULT FALSE NOT NULL
 avatar_url          TEXT NULLABLE
 email_verified_at   DATETIME NULLABLE        -- NULL = unverified
+preferred_theme     TEXT NULLABLE            -- [planned-v1.4] user-selected theme; NULL = use site default
+totp_secret         TEXT NULLABLE            -- [planned-v1.4] base32 secret; NULL = 2FA disabled
+totp_backup_codes   TEXT NULLABLE            -- [planned-v1.4] JSON array of hashed single-use codes
 created_at          DATETIME DEFAULT NOW NOT NULL
 updated_at          DATETIME DEFAULT NOW NOT NULL
 ```
@@ -346,7 +364,10 @@ privacy_policy                   = ""
 registration_enabled             = "true"
 show_upcoming_event_on_homepage  = "true"
 venmo_handle                     = ""
-ui_theme                         = "dark"
+default_dark_theme               = "dark"
+default_light_theme              = "light"
+allowed_themes                   = "[\"dark\",\"dracula\",\"night\",\"synthwave\",\"halloween\",\"forest\",\"black\",\"luxury\",\"dim\",\"light\",\"cupcake\",\"retro\",\"garden\",\"lofi\",\"autumn\",\"nord\"]"
+totp_required_for_admin          = "false"
 discord_oauth_client_id          = ""
 discord_oauth_client_secret      = ""
 google_oauth_client_id           = ""
@@ -368,8 +389,11 @@ itad_api_key                     = ""
 ```
 
 The first-run wizard also writes `setup_complete = "true"` when onboarding is done.
-The `ui_theme` value is read by `base.html` and applied as `data-theme` on the
-`<html>` element. Admin pages always render with `data-theme="dim"`.
+`base.html` selects the active theme via an inline script before `<body>` content:
+(1) use `current_user.preferred_theme` if set and present in `allowed_themes`,
+(2) else use `default_dark_theme` if the browser reports `prefers-color-scheme: dark`,
+(3) else use `default_light_theme`. Admin pages always render with `data-theme="dim"`.
+The admin settings page shows two separate selects — one for each default theme.
 
 ---
 
@@ -386,8 +410,20 @@ short_description   TEXT NULLABLE            -- One-liner for listing cards
 start_datetime      DATETIME NOT NULL
 end_datetime        DATETIME NOT NULL
 location            TEXT NOT NULL
+                    -- supports GPS coordinates in 'lat,lng' format
+                    -- (e.g. 38.8976,-77.0366) for venues without a street address.
+                    -- The event detail page wraps location in a Google Maps link:
+                    -- https://www.google.com/maps?q=<urlencode(location)>
 cover_image_url     TEXT NULLABLE
 gallery_url         TEXT NULLABLE
+                    -- Link to a Google Photos shared album. If set, the event
+                    -- detail page shows a "View Photos" link. Users can join the
+                    -- album from within Google Photos. No iframe embed (blocked by
+                    -- X-Frame-Options). No separate join URL field.
+location_map_embed_url TEXT NULLABLE         -- [planned-v1.3] iframe src from
+                    -- Google Maps → Share → Embed a map. Admin pastes only the
+                    -- src URL, not the full <iframe> HTML. Template constructs
+                    -- the iframe. If not set, no map is shown.
 seating_enabled     BOOLEAN DEFAULT FALSE NOT NULL
 registration_open   BOOLEAN DEFAULT TRUE NOT NULL
 registration_closes_at DATETIME NULLABLE
@@ -637,6 +673,49 @@ created_at                  DATETIME DEFAULT NOW NOT NULL
 
 ---
 
+### webauthn_credentials [planned-v1.3]
+```
+id              INTEGER PK
+user_id         INTEGER FK -> users NOT NULL
+credential_id   BLOB NOT NULL UNIQUE
+public_key      BLOB NOT NULL
+sign_count      INTEGER NOT NULL DEFAULT 0
+name            TEXT NOT NULL            -- user-supplied label (e.g. "YubiKey")
+created_at      DATETIME NOT NULL
+```
+
+---
+
+### activity_log [planned-v1.3]
+```
+id          INTEGER PK
+user_id     INTEGER FK -> users NULLABLE  -- NULL = system action
+action      TEXT NOT NULL
+            -- Convention: "resource.verb"
+            -- e.g. "registration.marked_paid", "event.created",
+            --      "user.admin_granted", "tournament.started"
+target_type TEXT NOT NULL                 -- e.g. "registration", "event", "user"
+target_id   INTEGER NULLABLE
+details     TEXT NULLABLE                 -- JSON string with relevant context
+            -- e.g. {"from": "unpaid", "to": "paid", "method": "cash"}
+ip_address  TEXT NULLABLE
+created_at  DATETIME NOT NULL
+```
+Append-only. No update or delete routes for log entries. Populated exclusively
+via `activity.log()` — never written directly from routes.
+
+Logged actions (and only these):
+`registration.marked_paid`, `registration.marked_comped`,
+`registration.checked_in`, `registration.cancelled`,
+`registration.seat_assigned`, `registration.admin_notes_updated`,
+`event.created`, `event.updated`, `event.status_changed`, `event.deleted`,
+`ticket_type.created`, `ticket_type.updated`,
+`user.admin_granted`, `user.admin_revoked`,
+`tournament.started`, `tournament.reset`, `tournament.deleted`,
+`equipment.approved`, `equipment.denied`
+
+---
+
 ## URL Map
 
 ### Health check (app.py)
@@ -677,6 +756,7 @@ POST       /auth/<provider>/confirm-link        Confirm linking OAuth to existin
 GET        /auth/steam/login                    Steam OpenID redirect
 GET        /auth/steam/callback                 Steam OpenID callback
 GET  POST  /auth/steam/complete-registration    New user via Steam (collect email/password)
+GET  POST  /auth/2fa/verify                     2FA challenge during login [planned-v1.4]
 ```
 
 ### Account blueprint (routes/account.py)
@@ -705,6 +785,11 @@ POST       /account/stripe/webhook                   Stripe webhook (CSRF exempt
 POST       /account/paypal/webhook                   PayPal webhook (CSRF exempt)
 POST       /events/<slug>/tournaments/<tid>/signup   Sign up for tournament (login required)
 POST       /events/<slug>/tournaments/<tid>/withdraw Withdraw from tournament (login required)
+GET  POST  /account/security                        2FA settings page (login required) [planned-v1.4]
+GET        /account/security/setup                  2FA setup — show QR code (login required) [planned-v1.4]
+POST       /account/security/verify                 Verify TOTP to complete 2FA setup (login required) [planned-v1.4]
+POST       /account/security/disable                Disable 2FA, requires password (login required) [planned-v1.4]
+POST       /account/security/backup-codes           Regenerate backup codes (login required) [planned-v1.4]
 ```
 
 ### Admin blueprint (routes/admin.py — all routes require is_admin=True)
@@ -780,6 +865,9 @@ GET        /admin/users/<uid>        User detail with registration history
 POST       /admin/users/<uid>/toggle-admin  Toggle admin (cannot demote self or last admin)
 
 GET  POST  /admin/email             Mass email composer
+
+GET        /admin/logs              Activity log — paginated 50/page, newest first,
+                                    filterable by action type [planned-v1.3]
 ```
 
 ---
@@ -844,38 +932,110 @@ GET  POST  /admin/email             Mass email composer
 - Attendees can self-sign-up / withdraw via /events/<slug>/tournaments/<tid>/signup
 - Challonge API credentials configured in admin settings
 
+Still planned for v1.3 (not yet built):
+- Passkeys (WebAuthn) — see Remaining Roadmap
+- Location map embed — `location_map_embed_url` field on events, iframe on event detail
+- General activity logging — `activity_log` table, `activity.py`, `/admin/logs` view
+
 ### Deferred (Not Built)
 
-- **Passkeys (WebAuthn)**: No implementation. Schema changes needed (webauthn
-  credentials table). Library: `webauthn` pip package. Routes needed:
-  `/account/passkeys` (list), `/account/passkeys/register/begin` and `/complete`
-  (registration ceremony), `/auth/passkey/begin` and `/complete` (authentication
-  ceremony).
 - **Coupon codes**: Explicitly deferred, not forgotten. Would need a `coupons`
   table and integration into the registration payment flow.
 - **QR code check-in scanner UI**: The `checkin_code` UUID is stored on every
   registration for future use. The scanner UI has not been built.
-- **Self-hosted photo gallery**: `gallery_url` is a link to Google Photos or
-  similar. File upload / self-hosted gallery is deferred.
+- **Self-hosted photo gallery**: `gallery_url` is a link to a Google Photos album.
+  File upload / self-hosted gallery is deferred.
 - **Child/guardian registration**: Not built. No schema support.
 
 ---
 
 ## Remaining Roadmap
 
-The only remaining planned feature is **passkeys (WebAuthn)**:
+### v1.3 — Remaining planned features
 
-- Schema: add a `webauthn_credentials` table (`id`, `user_id`, `credential_id`
-  bytes (unique), `public_key` bytes, `sign_count` int, `name` text, `created_at`).
+**Passkeys (WebAuthn)**
+- Schema: `webauthn_credentials` table — see Database Schema section.
 - Library: `webauthn` (pip). Handles both registration and authentication
   ceremonies per WebAuthn spec.
-- Routes needed on the account blueprint: `GET/POST /account/passkeys` (list and
+- Routes on the account blueprint: `GET/POST /account/passkeys` (list and
   delete), `POST /account/passkeys/register/begin` + `/complete` (registration
   ceremony, returns JSON), `POST /auth/passkey/begin` + `/complete`
   (authentication ceremony, returns JSON). These endpoints return JSON and are
   CSRF-exempt; use `@csrf.exempt` from `extensions.py`.
 - Login page needs a "Use passkey" button that triggers the authentication ceremony
   via the WebAuthn browser API.
+
+**Location Map Embed**
+- New field: `events.location_map_embed_url` (TEXT NULLABLE). Migration required;
+  batch alter on events table.
+- Admin adds the field to the event create/edit form with the note:
+  "Paste the iframe src URL from Google Maps → Share → Embed a map".
+  Admin pastes the src URL only — not the full `<iframe>` HTML.
+- Event detail page shows an iframe if set:
+  ```html
+  <iframe src="{{ event.location_map_embed_url }}" width="100%" height="300"
+          style="border:0;" allowfullscreen="" loading="lazy"></iframe>
+  ```
+  If not set, no iframe is shown. No API key needed.
+- The `location` text field value is also wrapped in a Google Maps search link on
+  the event detail page:
+  ```html
+  <a href="https://www.google.com/maps?q={{ event.location | urlencode }}"
+     target="_blank" rel="noopener">{{ event.location }}</a>
+  ```
+  This works for plain addresses and GPS coordinates alike.
+
+**General Activity Logging**
+- New table: `activity_log` — see Database Schema section.
+- New file: `activity.py` with a single `log()` helper — see Helper Modules section.
+- Admin view: `GET /admin/logs` — paginated list (50/page), newest first.
+  Shows: timestamp, admin name, action, target type/id, details JSON.
+  Filterable by action type via dropdown. Link from admin dashboard.
+- Migration required; new table (no alter needed).
+
+---
+
+### v1.4 — Planned features
+
+**User Theme Preference (admin-controlled options)**
+- New field: `users.preferred_theme` (TEXT NULLABLE). Migration required; batch
+  alter on users table.
+- `allowed_themes` site_settings key (JSON array of theme names). Admin restricts
+  the available themes via multi-select on the settings page.
+- Profile page (`/account`): add a "Display Theme" section showing only
+  admin-allowed themes as a select. Saving updates `users.preferred_theme`.
+- `base.html` theme logic: see site_settings section and Key Design Decisions.
+
+**Optional 2FA / TOTP**
+- Dependencies: `pyotp`, `qrcode[pil]` (add to requirements.txt when implementing).
+- New fields on users: `totp_secret` (TEXT NULLABLE), `totp_backup_codes`
+  (TEXT NULLABLE, JSON array of hashed codes) — see Database Schema section.
+- New site_settings key: `totp_required_for_admin = "false"`. If `"true"`, admins
+  without 2FA cannot access `/admin/*` routes.
+
+Setup flow (`GET/POST /account/security`):
+- Shows current 2FA status.
+- "Enable 2FA" → `GET /account/security/setup`: generates secret via
+  `pyotp.random_base32()`, stores it in session (not DB), shows QR code as a
+  data URI (generated with `qrcode`) and raw secret for manual entry.
+- User submits a valid TOTP code → `POST /account/security/verify`: validates
+  against the session-stored secret. On success: saves `totp_secret` to DB,
+  generates 8 backup codes (random 8-char strings, hash before storing), shows
+  codes once to the user.
+- "Disable 2FA" (requires password confirmation) → `POST /account/security/disable`.
+- "Regenerate backup codes" → `POST /account/security/backup-codes`.
+
+Login flow change:
+- After correct password, if `user.totp_secret` is set: store
+  `session["pending_2fa_user_id"]`, redirect to `GET /auth/2fa/verify`.
+- `GET/POST /auth/2fa/verify`: shows TOTP code input. Valid TOTP code or valid
+  backup code (mark as used, remove from list) → complete `login_user()`.
+- On failure: show error; allow retry. After 5 failed attempts, lock out for
+  10 minutes (track attempt count and lockout expiry in session).
+
+Backup codes:
+- Each code is single-use. On use, remove it from the stored list.
+- Dashboard shows a warning if 0 backup codes remain.
 
 Everything else is either done or explicitly out of scope (see What NOT to Build).
 
@@ -926,13 +1086,44 @@ Site name, theme, social links, feature toggles, OAuth credentials,
 Stripe keys, PayPal keys, Challonge keys → site_settings table
 
 **Admin panel always uses data-theme="dim"**
-Regardless of the ui_theme setting. Hard-coded in base.html for /admin/* routes.
+Regardless of any theme settings. Hard-coded in base.html for /admin/* routes.
+
+**Theme selection: site defaults + per-user preference + browser hint**
+Two site_settings keys replace the old single `ui_theme` key: `default_dark_theme`
+and `default_light_theme`. An `allowed_themes` key (JSON array) controls which
+themes users may choose. `base.html` picks the active theme via an inline script
+before `<body>` content: (1) use `current_user.preferred_theme` if set and in
+`allowed_themes`; (2) else use `default_dark_theme` if browser reports
+`prefers-color-scheme: dark`; (3) else use `default_light_theme`. Admin pages
+always use `dim`. The admin settings page shows two separate selects, one per
+default theme.
 
 **What to bring lives in description**
 No separate `what_to_bring` field. Operators include it in the event description.
 
-**Gallery is a URL, not file storage**
-`events.gallery_url` links to Google Photos or similar. No file upload in scope.
+**Gallery is a link, not file storage**
+`events.gallery_url` links to a Google Photos shared album. If set, the event
+detail page shows a "View Photos" link. Users can join the album from within
+Google Photos. Do not attempt to iframe or embed Google Photos — they block it
+with X-Frame-Options. No separate join URL field. No file upload in scope.
+
+**Location renders as a Google Maps link; optional embed for a map tile**
+The `location` text value is always wrapped in a `google.com/maps?q=` link on
+the event detail page, supporting plain addresses and `lat,lng` coordinates.
+`location_map_embed_url` (planned v1.3) optionally adds an iframe map tile above
+that link. Admin pastes only the src URL from the Google Maps embed dialog.
+
+**Activity logging covers admin writes only, not reads**
+`activity.py` provides a single `log()` function. Only the curated list of
+admin-initiated write actions defined in the roadmap is logged. Reads, user
+self-service actions, and automated system events are not logged. The log is
+append-only — no update or delete routes exist for `activity_log` rows.
+
+**TOTP secret is stored in session during setup, not DB, until verified**
+`/account/security/setup` generates a `pyotp` secret and stores it in the Flask
+session. It is only persisted to `users.totp_secret` after the user submits a
+valid TOTP code via `/account/security/verify`. This prevents half-configured
+2FA state in the database.
 
 **Email verification tokens and password reset tokens are hashed**
 Always store hashed (SHA-256 via `_hash_token`). Never store raw tokens in the
@@ -1016,7 +1207,13 @@ dark, dracula, night, synthwave, halloween, forest, black, luxury, dim
 **Light themes:**
 light, cupcake, retro, garden, lofi, autumn, nord
 
-Default theme on first install: `dark`
+Default dark theme on first install: `dark`
+Default light theme on first install: `light`
+
+The admin settings page shows two separate selects — one for `default_dark_theme`
+(picks from the dark list) and one for `default_light_theme` (picks from the light
+list). The `allowed_themes` setting (v1.4) restricts which themes users may set
+as their personal preference.
 
 ---
 
@@ -1266,7 +1463,7 @@ The following are explicitly out of scope. Do not implement, do not suggest:
 - Orga team management UI
 - Multiple seating plans per event
 - Intranet / live event mode
-- Audit logging
+- Full audit logging (every DB write) — the planned Activity Logging feature covers only a curated list of admin write actions
 - Multi-tenant / multi-organization support
 - Additional OAuth/OpenID providers beyond Discord, Google, Steam — not in scope
 - Coupon codes — explicitly deferred, not forgotten
