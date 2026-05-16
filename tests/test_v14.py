@@ -238,3 +238,15 @@ def test_dashboard_shows_profile_card(client, regular_user):
     assert resp.status_code == 200
     assert b"My Profile" in resp.data
     assert b"/account" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Test 14: POST /logout redirects and ends the session
+# ---------------------------------------------------------------------------
+
+def test_logout_via_post_redirects(client, regular_user):
+    _login(client, "user@example.com", "userpass123")
+    resp = client.post("/logout", follow_redirects=False)
+    assert resp.status_code == 302
+    resp2 = client.get("/dashboard", follow_redirects=False)
+    assert resp2.status_code == 302
