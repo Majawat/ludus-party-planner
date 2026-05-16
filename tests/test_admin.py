@@ -12,6 +12,7 @@ ADMIN_ROUTES = [
     "/admin/settings",
     "/admin/events",
     "/admin/events/new",
+    "/admin/logs",
 ]
 
 

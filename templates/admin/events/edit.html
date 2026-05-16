@@ -108,6 +108,7 @@
         <div class="form-control">
           <label class="label" for="location">
             <span class="label-text font-semibold">{{ form.location.label.text }}</span>
+            <span class="label-text-alt text-base-content/60">Tip: GPS coordinates work too (e.g. 38.8976,-77.0366)</span>
           </label>
           {{ form.location(id="location", class="input input-bordered w-full") }}
           {% for error in form.location.errors %}

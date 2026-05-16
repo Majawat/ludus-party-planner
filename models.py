@@ -516,6 +516,19 @@ class TournamentParticipant(db.Model):
     registration = db.relationship("Registration", backref="tournament_participations")
 
 
+class ActivityLog(db.Model):
+    __tablename__ = "activity_log"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    action = db.Column(db.Text, nullable=False)
+    target_type = db.Column(db.Text, nullable=True)
+    target_id = db.Column(db.Integer, nullable=True)
+    details = db.Column(db.Text, nullable=True)
+    ip_address = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+    user = db.relationship("User", backref="activity_logs")
+
+
 def unique_field_name(question_text: str, event_id: int, exclude_id: int = None) -> str:
     base = slugify(question_text).replace("-", "_") or "question"
     base = base[:60]
