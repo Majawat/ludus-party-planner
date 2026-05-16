@@ -140,6 +140,8 @@ def create_app(test_config=None):
         "paypal_client_secret": "",
         "paypal_mode": "sandbox",
         "paypal_webhook_id": "",
+        "challonge_api_key": "",
+        "challonge_username": "",
     }
 
     @app.cli.command("seed-settings")

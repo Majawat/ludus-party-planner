@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Tournaments — {{ event.name }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+
+  <div class="breadcrumbs text-sm mb-4">
+    <ul>
+      <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+      <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+      <li>Tournaments</li>
+    </ul>
+  </div>
+
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-bold">Tournaments</h1>
+    {% if challonge_configured %}
+      <a href="{{ url_for('admin.tournament_new', id=event.id) }}" class="btn btn-primary">
+        + Create Tournament
+      </a>
+    {% else %}
+      <a href="{{ url_for('admin.settings') }}" class="btn btn-outline btn-warning">
+        Configure Challonge in Settings
+      </a>
+    {% endif %}
+  </div>
+
+  {% if not challonge_configured %}
+  <div class="alert alert-warning mb-6">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+    <span>
+      Challonge API credentials are not configured.
+      <a href="{{ url_for('admin.settings') }}" class="link font-semibold">Go to Settings</a>
+      to add your API key and username.
+    </span>
+  </div>
+  {% endif %}
+
+  {% if event.tournaments %}
+  <div class="overflow-x-auto">
+    <table class="table table-zebra w-full">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Game</th>
+          <th>Format</th>
+          <th>Status</th>
+          <th class="text-right">Participants</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in event.tournaments %}
+        <tr>
+          <td class="font-semibold">{{ t.name }}</td>
+          <td>{{ t.game_name }}</td>
+          <td>
+            <span class="badge badge-ghost badge-sm capitalize">{{ t.format }}</span>
+          </td>
+          <td>
+            {% if t.status == 'pending' %}
+              <span class="badge badge-info badge-sm">Pending</span>
+            {% elif t.status == 'underway' %}
+              <span class="badge badge-warning badge-sm">Underway</span>
+            {% elif t.status == 'complete' %}
+              <span class="badge badge-success badge-sm">Complete</span>
+            {% else %}
+              <span class="badge badge-ghost badge-sm capitalize">{{ t.status }}</span>
+            {% endif %}
+          </td>
+          <td class="text-right">{{ t.participants | length }}</td>
+          <td class="text-right">
+            <a href="{{ url_for('admin.tournament_detail', id=event.id, tid=t.id) }}"
+               class="btn btn-sm btn-outline">Manage</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card bg-base-200 shadow">
+    <div class="card-body text-center text-base-content/60">
+      <p>No tournaments yet for this event.</p>
+      {% if challonge_configured %}
+        <a href="{{ url_for('admin.tournament_new', id=event.id) }}" class="btn btn-primary btn-sm mt-2">
+          Create the first tournament
+        </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

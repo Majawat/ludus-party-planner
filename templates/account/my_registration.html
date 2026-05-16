@@ -189,6 +189,59 @@
   </div>
   {% endif %}
 
+  {% if tournaments %}
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title mb-3">Tournaments</h2>
+      {% for tournament in tournaments %}
+      <div class="border border-base-300 rounded-box p-4 {% if not loop.last %}mb-3{% endif %}">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="font-semibold">{{ tournament.name }}</div>
+            <div class="text-sm text-base-content/60 mt-0.5">
+              {{ tournament.game_name }} &middot; {{ tournament.format }}
+            </div>
+            <div class="mt-1">
+              {% if tournament.status == 'underway' %}
+                <span class="badge badge-warning badge-sm">Underway</span>
+              {% elif tournament.status == 'complete' %}
+                <span class="badge badge-success badge-sm">Complete</span>
+              {% elif tournament.status == 'pending' %}
+                <span class="badge badge-info badge-sm">Open</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="flex flex-col items-end gap-2">
+            {% if registration.status != 'cancelled' %}
+              {% if tournament.id in participant_tournament_ids %}
+                {% if tournament.status in ('underway', 'complete') %}
+                  <span class="badge badge-primary">Signed Up</span>
+                {% else %}
+                  <form method="POST" action="{{ url_for('account.tournament_withdraw', slug=event.slug, tid=tournament.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button type="submit" class="btn btn-outline btn-error btn-sm">Withdraw</button>
+                  </form>
+                {% endif %}
+              {% elif tournament.sign_ups_open and tournament.status == 'pending' %}
+                <form method="POST" action="{{ url_for('account.tournament_signup', slug=event.slug, tid=tournament.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <button type="submit" class="btn btn-primary btn-sm">Sign Up</button>
+                </form>
+              {% endif %}
+            {% endif %}
+            {% if tournament.challonge_full_url and tournament.status in ('underway', 'complete') %}
+              <a href="{{ tournament.challonge_full_url }}" target="_blank" class="btn btn-ghost btn-xs">
+                View Bracket ↗
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   {% if questions %}
   <div class="card bg-base-200 shadow mb-6">
     <div class="card-body">

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Matches — {{ tournament.name }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+  <div class="breadcrumbs text-sm mb-4">
+    <ul>
+      <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+      <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+      <li><a href="{{ url_for('admin.tournaments_list', id=event.id) }}">Tournaments</a></li>
+      <li><a href="{{ url_for('admin.tournament_detail', id=event.id, tid=tournament.id) }}">{{ tournament.name }}</a></li>
+      <li>Matches</li>
+    </ul>
+  </div>
+
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-bold">Open Matches</h1>
+    <a href="{{ url_for('admin.tournament_matches', id=event.id, tid=tournament.id) }}"
+       class="btn btn-sm btn-ghost">Refresh</a>
+  </div>
+
+  {% if error %}
+  <div class="alert alert-error mb-6">
+    <span>Challonge API error: {{ error }}</span>
+  </div>
+  {% elif not open_matches %}
+  <div class="card bg-base-200 shadow">
+    <div class="card-body text-center text-base-content/60">
+      <p>No open matches right now. All matches may be complete, or the tournament hasn't started.</p>
+      {% if tournament.challonge_full_url %}
+        <a href="{{ tournament.challonge_full_url }}" target="_blank" class="btn btn-outline btn-sm mt-3">
+          View on Challonge ↗
+        </a>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="space-y-4" id="matches-list">
+    {% for match in open_matches %}
+    {% set p1_name = participant_map.get(match.player1_id, 'TBD') %}
+    {% set p2_name = participant_map.get(match.player2_id, 'TBD') %}
+    <div id="match-{{ match.id }}" class="card bg-base-200 shadow">
+      <div class="card-body">
+        <h2 class="card-title text-base">
+          {{ p1_name }} <span class="text-base-content/40 font-normal mx-2">vs</span> {{ p2_name }}
+        </h2>
+        <form hx-post="{{ url_for('admin.tournament_report_match', id=event.id, tid=tournament.id, match_id=match.id) }}"
+              hx-target="#match-{{ match.id }}"
+              hx-swap="outerHTML"
+              class="flex flex-wrap items-end gap-4 mt-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+          <div class="form-control">
+            <label class="label label-text text-sm">Score (e.g. 2-1)</label>
+            <input type="text" name="scores_csv" class="input input-bordered input-sm w-32"
+                   placeholder="2-1">
+          </div>
+
+          <div class="form-control">
+            <label class="label label-text text-sm">Winner</label>
+            <select name="winner_id" class="select select-bordered select-sm" required>
+              <option value="">Select winner</option>
+              <option value="{{ match.player1_id }}">{{ p1_name }}</option>
+              <option value="{{ match.player2_id }}">{{ p2_name }}</option>
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-sm">Report</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

@@ -237,6 +237,27 @@
       </div>
     </div>
 
+    {# --- Challonge --- #}
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Challonge</h2>
+        <p class="text-sm text-base-content/70 mb-4">
+          Required to create and manage tournament brackets. Find your API key at
+          <a href="https://challonge.com/settings/developer" class="link" target="_blank">challonge.com/settings/developer</a>.
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="form-control">
+            {{ form.challonge_username.label(class="label label-text font-semibold") }}
+            {{ form.challonge_username(class="input input-bordered w-full", placeholder="your_challonge_username") }}
+          </div>
+          <div class="form-control">
+            {{ form.challonge_api_key.label(class="label label-text font-semibold") }}
+            {{ form.challonge_api_key(class="input input-bordered w-full", type="password", placeholder="API key") }}
+          </div>
+        </div>
+      </div>
+    </div>
+
     {# --- Legal --- #}
     <div class="card bg-base-200 shadow mb-6">
       <div class="card-body">

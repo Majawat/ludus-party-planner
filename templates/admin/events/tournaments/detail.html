@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}{{ tournament.name }} — {{ event.name }} — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+
+  <div class="breadcrumbs text-sm mb-4">
+    <ul>
+      <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+      <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+      <li><a href="{{ url_for('admin.tournaments_list', id=event.id) }}">Tournaments</a></li>
+      <li>{{ tournament.name }}</li>
+    </ul>
+  </div>
+
+  {# Header #}
+  <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+    <div>
+      <h1 class="text-3xl font-bold">{{ tournament.name }}</h1>
+      <p class="text-base-content/60 mt-1">{{ tournament.game_name }} &middot; {{ tournament.format | capitalize }}</p>
+    </div>
+    <div class="flex items-center gap-2">
+      {% if tournament.status == 'pending' %}
+        <span class="badge badge-info">Pending</span>
+      {% elif tournament.status == 'underway' %}
+        <span class="badge badge-warning">Underway</span>
+      {% elif tournament.status == 'complete' %}
+        <span class="badge badge-success">Complete</span>
+      {% endif %}
+      {% if tournament.challonge_full_url %}
+        <a href="{{ tournament.challonge_full_url }}" target="_blank" class="btn btn-sm btn-outline">
+          View on Challonge ↗
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if tournament.description %}
+  <p class="text-base-content/70 mb-6">{{ tournament.description }}</p>
+  {% endif %}
+
+  {# Actions by status #}
+  <div class="flex flex-wrap gap-3 mb-8">
+    {% if tournament.status == 'pending' %}
+      <a href="{{ url_for('admin.tournament_add_participants', id=event.id, tid=tournament.id) }}"
+         class="btn btn-primary">Add Confirmed Registrants</a>
+
+      {% if tournament.participants | length >= 2 %}
+        <form method="POST" action="{{ url_for('admin.tournament_start', id=event.id, tid=tournament.id) }}"
+              onsubmit="return confirm('Start the tournament? This will finalize the bracket and cannot be easily undone.');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button type="submit" class="btn btn-success">Start Tournament</button>
+        </form>
+      {% else %}
+        <button class="btn btn-success btn-disabled" disabled title="Need at least 2 participants">
+          Start Tournament
+        </button>
+      {% endif %}
+
+      <form method="POST" action="{{ url_for('admin.tournament_reset', id=event.id, tid=tournament.id) }}"
+            onsubmit="return confirm('Reset will clear all match results. Continue?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button type="submit" class="btn btn-outline btn-warning">Reset</button>
+      </form>
+
+    {% elif tournament.status == 'underway' %}
+      <a href="{{ url_for('admin.tournament_matches', id=event.id, tid=tournament.id) }}"
+         class="btn btn-primary">View / Report Matches</a>
+      <form method="POST" action="{{ url_for('admin.tournament_reset', id=event.id, tid=tournament.id) }}"
+            onsubmit="return confirm('Reset will clear all match results. Continue?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button type="submit" class="btn btn-outline btn-warning">Reset Tournament</button>
+      </form>
+
+    {% elif tournament.status == 'complete' %}
+      <div class="alert alert-success">
+        <span>Tournament complete. Results are locked.</span>
+      </div>
+    {% endif %}
+  </div>
+
+  {# Participants #}
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="card-title">Participants ({{ tournament.participants | length }})</h2>
+      </div>
+
+      {% if tournament.participants %}
+      <div class="overflow-x-auto">
+        <table class="table table-sm w-full">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Seed</th>
+              <th>Linked Registrant</th>
+              {% if tournament.status not in ('underway', 'complete') %}
+                <th></th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in tournament.participants %}
+            <tr>
+              <td>{{ p.display_name }}</td>
+              <td>{{ p.seed or "—" }}</td>
+              <td>
+                {% if p.registration_id and p.registration_id in registrations_by_id %}
+                  <span class="badge badge-ghost badge-sm">
+                    {{ registrations_by_id[p.registration_id].user.name }}
+                  </span>
+                {% else %}
+                  <span class="text-base-content/40 text-sm">Manual</span>
+                {% endif %}
+              </td>
+              {% if tournament.status not in ('underway', 'complete') %}
+                <td class="text-right">
+                  <form method="POST" action="{{ url_for('admin.tournament_remove_participant', id=event.id, tid=tournament.id, pid=p.id) }}"
+                        onsubmit="return confirm('Remove {{ p.display_name }}?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button type="submit" class="btn btn-ghost btn-xs text-error">Remove</button>
+                  </form>
+                </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <p class="text-base-content/50 text-sm">No participants yet.</p>
+      {% endif %}
+
+      {# Manual add form (only when pending) #}
+      {% if tournament.status == 'pending' %}
+      <div class="divider">Add Manual Participant</div>
+      <form method="POST" action="{{ url_for('admin.tournament_add_manual', id=event.id, tid=tournament.id) }}"
+            class="flex gap-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="text" name="display_name" class="input input-bordered input-sm flex-1"
+               placeholder="Participant name" required>
+        <button type="submit" class="btn btn-sm btn-outline">Add</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Danger zone #}
+  <div class="card border border-error bg-base-200 shadow">
+    <div class="card-body">
+      <h2 class="card-title text-error">Danger Zone</h2>
+      <p class="text-sm text-base-content/70 mb-3">
+        Deleting this tournament will also remove it from Challonge and cannot be undone.
+      </p>
+      <form method="POST" action="{{ url_for('admin.tournament_delete', id=event.id, tid=tournament.id) }}"
+            onsubmit="return confirm('Delete tournament \'{{ tournament.name }}\' and all its data on Challonge?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button type="submit" class="btn btn-error btn-sm">Delete Tournament</button>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

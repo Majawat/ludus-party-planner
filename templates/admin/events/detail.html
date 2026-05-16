@@ -153,6 +153,17 @@
       </div>
     </a>
 
+    <a href="{{ url_for('admin.tournaments_list', id=event.id) }}"
+       class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
+      <div class="card-body">
+        <div class="flex items-center justify-between">
+          <h2 class="card-title">Tournaments</h2>
+          <span class="badge badge-primary">{{ event.tournaments | length }}</span>
+        </div>
+        <p class="text-base-content/70 text-sm">Create and manage Challonge brackets.</p>
+      </div>
+    </a>
+
     {% if event.status == 'published' %}
     <a href="{{ url_for('public.event_detail', slug=event.slug) }}" target="_blank"
        class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
