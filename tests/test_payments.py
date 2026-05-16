@@ -1,6 +1,7 @@
 """Tests for Stripe and PayPal payment integration."""
 import json
 from unittest.mock import MagicMock, patch
+from urllib.parse import urlparse
 from uuid import uuid4
 
 import pytest
@@ -207,7 +208,7 @@ class TestStripeRegistrationFlow:
             )
 
         assert resp.status_code == 302
-        assert "checkout.stripe.com" in resp.headers["Location"]
+        assert urlparse(resp.headers["Location"]).hostname == "checkout.stripe.com"
         reg = Registration.query.filter_by(user_id=regular_user.id).first()
         assert reg is not None
         assert reg.stripe_session_id == "cs_test_new123"
@@ -412,7 +413,9 @@ class TestPaypalRegistrationFlow:
                 follow_redirects=False,
             )
         assert resp.status_code == 302
-        assert "paypal.com" in resp.headers["Location"]
+        assert urlparse(resp.headers["Location"]).hostname in (
+            "www.sandbox.paypal.com", "www.paypal.com"
+        )
         reg = Registration.query.filter_by(user_id=regular_user.id).first()
         assert reg is not None
         assert reg.paypal_order_id == "ORDER_NEW_456"

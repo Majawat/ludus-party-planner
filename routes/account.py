@@ -288,7 +288,8 @@ def register_event(slug):
                 )
                 cancel_url = url_for("account.register_event", slug=slug, _external=True)
                 session_id, checkout_url = create_stripe_session(
-                    registration, event, ticket, success_url, cancel_url
+                    registration, event, ticket, success_url, cancel_url,
+                    customer_email=registration.user.email,
                 )
                 registration.stripe_session_id = session_id
                 registration.payment_processor = "stripe"
