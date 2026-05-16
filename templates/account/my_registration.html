@@ -67,6 +67,27 @@
     </div>
   </div>
 
+  {% if registration.payment_status == 'unpaid' and registration.status != 'cancelled' %}
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title mb-2">Complete Payment</h2>
+      {% if registration.ticket_type.price == 0 %}
+        <p class="text-sm text-base-content/70">This ticket is free — no payment required.</p>
+      {% elif stripe_session and stripe_session.status == 'open' %}
+        <p class="text-sm text-base-content/70 mb-3">Your payment is in progress via Stripe.</p>
+        <a href="{{ stripe_session.url }}" class="btn btn-primary btn-sm">Complete Payment with Stripe</a>
+      {% elif registration.stripe_session_id %}
+        <p class="text-sm text-base-content/70">Your Stripe session has expired. Contact the organizer or pay at the door.</p>
+      {% elif paypal_checkout_url %}
+        <p class="text-sm text-base-content/70 mb-3">Your payment is in progress via PayPal.</p>
+        <a href="{{ paypal_checkout_url }}" class="btn btn-warning btn-sm">Complete Payment with PayPal</a>
+      {% else %}
+        <p class="text-sm text-base-content/70">Payment is due at the door. Contact the organizer if you have questions.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   {% if event.seating_enabled and registration.ticket_type.seatable and registration.status != 'cancelled' %}
   <div class="card bg-base-200 shadow mb-6">
     <div class="card-body">

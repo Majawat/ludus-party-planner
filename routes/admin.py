@@ -19,7 +19,13 @@ from models import (
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
-_BOOL_SETTINGS = {"registration_enabled", "show_upcoming_event_on_homepage", "steam_enabled"}
+_BOOL_SETTINGS = {
+    "registration_enabled",
+    "show_upcoming_event_on_homepage",
+    "steam_enabled",
+    "stripe_enabled",
+    "paypal_enabled",
+}
 
 
 @admin_bp.before_request
@@ -481,6 +487,7 @@ def registration_mark_paid(id, rid):
     if form.validate_on_submit():
         reg.payment_status = "paid"
         reg.payment_method = form.payment_method.data
+        reg.payment_processor = "manual"
         reg.paid_at = datetime.now(timezone.utc).replace(tzinfo=None)
         if reg.status == "pending":
             reg.status = "confirmed"

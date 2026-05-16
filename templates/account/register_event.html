@@ -112,9 +112,28 @@
         {% endfor %}
         {% endif %}
 
-        <div class="card-actions justify-end mt-4">
+        <div class="card-actions justify-end mt-4 flex-wrap gap-2">
           <a href="{{ url_for('public.event_detail', slug=event.slug) }}" class="btn btn-ghost">Cancel</a>
-          {{ form.submit(class="btn btn-primary") }}
+          {% set any_paid = available_tickets | selectattr('price', 'gt', 0) | list %}
+          {% if not any_paid %}
+            <button type="submit" name="payment_choice" value="later" class="btn btn-primary">
+              Register (Free)
+            </button>
+          {% else %}
+            {% if stripe_enabled %}
+              <button type="submit" name="payment_choice" value="stripe" class="btn btn-primary">
+                Pay with Stripe
+              </button>
+            {% endif %}
+            {% if paypal_enabled %}
+              <button type="submit" name="payment_choice" value="paypal" class="btn btn-warning">
+                Pay with PayPal
+              </button>
+            {% endif %}
+            <button type="submit" name="payment_choice" value="later" class="btn btn-outline">
+              Register — Pay Later
+            </button>
+          {% endif %}
         </div>
       </form>
     </div>

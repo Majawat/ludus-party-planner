@@ -4,16 +4,14 @@ from flask import Flask, jsonify, render_template
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask_mail import Mail
-from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
 
-from extensions import oauth
+from extensions import csrf, oauth
 from models import db, User, SiteSettings, Event, TicketType
 
 migrate = Migrate()
 login_manager = LoginManager()
 mail = Mail()
-csrf = CSRFProtect()
 
 
 def create_app(test_config=None):
@@ -133,6 +131,15 @@ def create_app(test_config=None):
         "google_oauth_client_secret": "",
         "steam_enabled": "false",
         "steam_api_key": "",
+        "stripe_enabled": "false",
+        "stripe_publishable_key": "",
+        "stripe_secret_key": "",
+        "stripe_webhook_secret": "",
+        "paypal_enabled": "false",
+        "paypal_client_id": "",
+        "paypal_client_secret": "",
+        "paypal_mode": "sandbox",
+        "paypal_webhook_id": "",
     }
 
     @app.cli.command("seed-settings")

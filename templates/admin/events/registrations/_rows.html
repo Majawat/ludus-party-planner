@@ -23,6 +23,13 @@
         {% else %}
           <span class="badge badge-warning badge-sm">Unpaid</span>
         {% endif %}
+        {% if reg.payment_processor == 'stripe' %}
+          <span class="badge badge-sm badge-secondary">Stripe</span>
+        {% elif reg.payment_processor == 'paypal' %}
+          <span class="badge badge-sm badge-info">PayPal</span>
+        {% elif reg.payment_processor == 'manual' %}
+          <span class="badge badge-sm badge-ghost">Manual</span>
+        {% endif %}
       </td>
       <td>
         {% if reg.needs_loaner %}
