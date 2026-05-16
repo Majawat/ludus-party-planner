@@ -191,3 +191,50 @@ def test_location_link_works_with_coordinates(app, client):
     assert resp.status_code == 200
     assert b"38.8976" in resp.data
     assert b"google.com/maps" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Test 10: navbar dropdown shows user name and profile link when authenticated
+# ---------------------------------------------------------------------------
+
+def test_navbar_shows_dropdown_when_authenticated(client, regular_user):
+    _login(client, "user@example.com", "userpass123")
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert regular_user.name.encode() in resp.data
+    assert b"/account" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Test 11: navbar shows Admin Panel link for admins
+# ---------------------------------------------------------------------------
+
+def test_navbar_shows_admin_link_for_admin(client, admin_user):
+    _login(client, "admin@example.com", "adminpass123")
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert b"/admin/" in resp.data
+    assert b"Admin Panel" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Test 12: navbar hides Admin Panel link for regular users
+# ---------------------------------------------------------------------------
+
+def test_navbar_hides_admin_link_for_regular_user(client, regular_user):
+    _login(client, "user@example.com", "userpass123")
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert b"Admin Panel" not in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Test 13: dashboard shows a My Profile card linking to /account
+# ---------------------------------------------------------------------------
+
+def test_dashboard_shows_profile_card(client, regular_user):
+    _login(client, "user@example.com", "userpass123")
+    resp = client.get("/dashboard")
+    assert resp.status_code == 200
+    assert b"My Profile" in resp.data
+    assert b"/account" in resp.data
