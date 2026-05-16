@@ -57,6 +57,7 @@
 
   {% if event.description %}
     <div class="mb-8 space-y-4 text-base-content/90 leading-relaxed">
+      {# SAFE: event.description is admin-entered only via the admin panel. No user-supplied content reaches this field. #}
       {{ event.description | safe }}
     </div>
   {% endif %}

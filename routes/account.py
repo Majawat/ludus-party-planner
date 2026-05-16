@@ -536,7 +536,7 @@ def paypal_success():
 
 
 @account_bp.route("/account/stripe/webhook", methods=["POST"])
-@csrf.exempt
+@csrf.exempt  # CSRF exempt: called by Stripe servers, not browsers. Stripe-Signature header verified instead.
 def stripe_webhook():
     import stripe as stripe_lib
     payload = request.get_data()
@@ -562,7 +562,7 @@ def stripe_webhook():
 
 
 @account_bp.route("/account/paypal/webhook", methods=["POST"])
-@csrf.exempt
+@csrf.exempt  # CSRF exempt: called by PayPal servers, not browsers. PayPal webhook signature verified instead.
 def paypal_webhook():
     import json as _json
     raw_body = request.get_data()

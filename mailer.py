@@ -1,5 +1,27 @@
-from flask import url_for
+import html as _html_mod
+import re
+from html.parser import HTMLParser
+
+from flask import current_app, url_for
 from flask_mail import Message
+
+
+class _StripTags(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self._chunks = []
+
+    def handle_data(self, data):
+        self._chunks.append(data)
+
+
+def _html_to_plain(html_str: str) -> str:
+    parser = _StripTags()
+    parser.feed(html_str)
+    text = " ".join(parser._chunks)
+    text = _html_mod.unescape(text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 
 def send_verification_email(user, raw_token):
@@ -83,12 +105,16 @@ def send_mass_email(recipients, subject, html_body):
     from app import mail
     success_count = 0
     failed = []
+    plain_body = _html_to_plain(html_body)
     for user in recipients:
-        msg = Message(subject=subject, recipients=[user.email], html=html_body)
+        msg = Message(subject=subject, recipients=[user.email])
+        msg.html = html_body
+        msg.body = plain_body
         try:
             mail.send(msg)
             success_count += 1
-        except Exception:
+        except Exception as e:
+            current_app.logger.warning("mailer: failed to send to %s: %s", user.email, e)
             failed.append(user.email)
     return success_count, failed
 

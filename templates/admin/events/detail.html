@@ -238,6 +238,7 @@
         Creates a draft copy of this event with all its ticket types. Useful for recurring events.
       </p>
       <form method="POST" action="{{ url_for('admin.event_clone', id=event.id) }}">
+        {# SAFE: dead code — "if false" means this branch never executes. The actual CSRF token is rendered on the next line without | safe. #}
         {{ csrf_token() | safe if false }}
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <button type="submit" class="btn btn-outline btn-sm">Clone Event</button>

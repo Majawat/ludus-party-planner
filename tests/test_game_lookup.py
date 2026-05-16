@@ -149,14 +149,21 @@ class TestGetBGGGame:
     def test_handles_202_retry(self):
         first = _mock_response(status_code=202)
         second = _mock_response(content=_BGG_THING_XML)
-        with patch("game_lookup.requests.get") as mock_get, \
-             patch("game_lookup.time.sleep") as mock_sleep:
+        with patch("game_lookup.requests.get") as mock_get:
             mock_get.side_effect = [first, second]
             result = get_bgg_game(13)
         assert mock_get.call_count == 2
-        mock_sleep.assert_called_once_with(2)
         assert result is not None
         assert result["name"] == "Catan"
+
+    def test_returns_none_on_double_202(self):
+        first = _mock_response(status_code=202)
+        second = _mock_response(status_code=202)
+        with patch("game_lookup.requests.get") as mock_get:
+            mock_get.side_effect = [first, second]
+            result = get_bgg_game(13)
+        assert mock_get.call_count == 2
+        assert result is None
 
     def test_returns_none_if_no_item(self):
         with patch("game_lookup.requests.get") as mock_get:

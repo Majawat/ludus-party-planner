@@ -17,7 +17,7 @@ def create_stripe_session(registration, event, ticket_type, success_url, cancel_
             "price_data": {
                 "currency": "usd",
                 "product_data": {"name": f"{event.name} — {ticket_type.name}"},
-                "unit_amount": int(ticket_type.price * 100),
+                "unit_amount": int(round(float(ticket_type.price) * 100)),
             },
             "quantity": 1,
         }],

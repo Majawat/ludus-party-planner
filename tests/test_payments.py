@@ -1,12 +1,14 @@
 """Tests for Stripe and PayPal payment integration."""
 import json
-from unittest.mock import MagicMock, patch
+from decimal import Decimal
+from unittest.mock import MagicMock, call, patch
 from urllib.parse import urlparse
 from uuid import uuid4
 
 import pytest
 
 from models import Registration, SiteSettings, TicketType, db as _db, utcnow
+from payments import _get_paypal_checkout_base_url
 
 
 # ---------------------------------------------------------------------------
@@ -587,3 +589,115 @@ class TestAdminMarkPaidOnPaymentRegistrations:
         _db.session.refresh(unpaid_paypal_registration)
         assert unpaid_paypal_registration.payment_status == "paid"
         assert unpaid_paypal_registration.payment_processor == "manual"
+
+
+# ---------------------------------------------------------------------------
+# FIX 1 — Stripe unit_amount float rounding regression test
+# ---------------------------------------------------------------------------
+
+class TestStripeUnitAmountRounding:
+    def test_price_with_cents_rounds_correctly(self, client, regular_user, published_event, stripe_settings):
+        """$15.10 must produce 1510 cents, not 1509 (float truncation bug)."""
+        from models import TicketType, db as _db
+        import json as _json
+
+        tt = TicketType(
+            event_id=published_event.id,
+            name="Tricky Price Pass",
+            price=Decimal("15.10"),
+            quantity_total=10,
+            seatable=False,
+            includes_lodging=False,
+            valid_days=_json.dumps(["2026-08-07"]),
+            max_per_user=1,
+            is_active=True,
+        )
+        _db.session.add(tt)
+        _db.session.commit()
+
+        captured_kwargs = {}
+
+        def fake_create(**kwargs):
+            captured_kwargs.update(kwargs)
+            s = MagicMock()
+            s.id = "cs_test_rounding"
+            s.url = "https://checkout.stripe.com/pay/cs_test_rounding"
+            return s
+
+        _login_user = lambda: client.post(
+            "/login",
+            data={"email": "user@example.com", "password": "userpass123"},
+            follow_redirects=False,
+        )
+        _login_user()
+
+        with patch("payments.stripe") as mock_stripe:
+            mock_stripe.checkout.Session.create.side_effect = fake_create
+            client.post(
+                f"/events/{published_event.slug}/register",
+                data={"ticket_type_id": tt.id, "payment_choice": "stripe"},
+                follow_redirects=False,
+            )
+
+        assert mock_stripe.checkout.Session.create.called
+        line_items = captured_kwargs.get("line_items", [])
+        assert len(line_items) == 1
+        unit_amount = line_items[0]["price_data"]["unit_amount"]
+        assert unit_amount == 1510, f"Expected 1510, got {unit_amount}"
+
+
+# ---------------------------------------------------------------------------
+# FIX 4 — PayPal URL defaults to sandbox when mode is empty or unset
+# ---------------------------------------------------------------------------
+
+class TestPaypalUrlDefaultsToSandbox:
+    def test_empty_paypal_mode_returns_sandbox_url(self, app):
+        with app.app_context():
+            SiteSettings.set("paypal_mode", "")
+            url = _get_paypal_checkout_base_url()
+        assert "sandbox" in url, f"Expected sandbox URL, got: {url}"
+        assert url != "https://www.paypal.com", "Empty mode must not produce live URL"
+
+    def test_sandbox_mode_returns_sandbox_url(self, app):
+        with app.app_context():
+            SiteSettings.set("paypal_mode", "sandbox")
+            url = _get_paypal_checkout_base_url()
+        assert url == "https://www.sandbox.paypal.com"
+
+    def test_live_mode_returns_live_url(self, app):
+        with app.app_context():
+            SiteSettings.set("paypal_mode", "live")
+            url = _get_paypal_checkout_base_url()
+        assert url == "https://www.paypal.com"
+
+
+# ---------------------------------------------------------------------------
+# FIX 5 — send_mass_email includes plain-text body
+# ---------------------------------------------------------------------------
+
+class TestMassEmailPlainText:
+    def test_mass_email_has_html_and_plain_body(self, app):
+        from mailer import send_mass_email
+
+        class FakeUser:
+            email = "test@example.com"
+
+        sent_messages = []
+
+        def fake_send(msg):
+            sent_messages.append(msg)
+
+        with app.app_context():
+            # mail is imported inside send_mass_email via "from app import mail"
+            with patch("app.mail") as mock_mail:
+                mock_mail.send.side_effect = fake_send
+                send_mass_email([FakeUser()], "Test Subject", "<p>Hello &amp; welcome</p>")
+
+        assert len(sent_messages) == 1
+        msg = sent_messages[0]
+        assert msg.html == "<p>Hello &amp; welcome</p>"
+        assert msg.body is not None
+        assert len(msg.body) > 0
+        assert "Hello" in msg.body
+        assert "&amp;" not in msg.body  # entities should be unescaped
+        assert "<p>" not in msg.body    # HTML tags should be stripped
