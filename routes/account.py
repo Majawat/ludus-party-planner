@@ -1,13 +1,15 @@
 from uuid import uuid4
 
+import requests as http_requests
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
+import challonge
 from extensions import csrf
 from forms import ChangePasswordForm, EventRegistrationForm, PotluckItemForm, SetPasswordForm
 from mailer import send_registration_confirmation_email, send_registration_pending_payment_email
-from models import Event, EventQuestion, LoanerEquipment, LoanerRequest, PotluckItem, Registration, RegistrationAnswer, Seat, SiteSettings, TicketType, UserPlatformAccount, db, utcnow
+from models import Event, EventQuestion, LoanerEquipment, LoanerRequest, PotluckItem, Registration, RegistrationAnswer, Seat, SiteSettings, TicketType, Tournament, TournamentParticipant, UserPlatformAccount, db, utcnow
 from payments import (
     capture_paypal_order,
     create_paypal_order,
@@ -378,6 +380,11 @@ def my_registration(slug):
                 + f"/checkoutnow?token={registration.paypal_order_id}"
             )
 
+    tournaments = Tournament.query.filter_by(event_id=event.id).all()
+    participant_tournament_ids = {
+        p.tournament_id for p in registration.tournament_participations
+    }
+
     return render_template(
         "account/my_registration.html",
         event=event,
@@ -387,6 +394,8 @@ def my_registration(slug):
         answers_by_qid=answers_by_qid,
         stripe_session=stripe_session,
         paypal_checkout_url=paypal_checkout_url,
+        tournaments=tournaments,
+        participant_tournament_ids=participant_tournament_ids,
     )
 
 
@@ -832,4 +841,116 @@ def potluck_delete(slug, item_id):
     db.session.delete(item)
     db.session.commit()
     flash("Item removed from potluck list.", "success")
+    return redirect(url_for("account.my_registration", slug=slug))
+
+
+# ---------------------------------------------------------------------------
+# Tournament self-registration
+# ---------------------------------------------------------------------------
+
+
+def _challonge_configured_account():
+    return bool(
+        SiteSettings.get("challonge_api_key", "")
+        and SiteSettings.get("challonge_username", "")
+    )
+
+
+@account_bp.route("/events/<slug>/tournaments/<int:tid>/signup", methods=["POST"])
+@login_required
+def tournament_signup(slug, tid):
+    event = db.session.execute(
+        select(Event).filter_by(slug=slug, status="published")
+    ).scalar_one_or_none()
+    if event is None:
+        abort(404)
+
+    registration = Registration.query.filter_by(
+        user_id=current_user.id, event_id=event.id
+    ).first()
+    if registration is None or registration.status == "cancelled":
+        flash("You must have a confirmed registration for this event to join a tournament.", "warning")
+        return redirect(url_for("public.event_detail", slug=slug))
+
+    tournament = db.session.get(Tournament, tid)
+    if tournament is None or tournament.event_id != event.id:
+        abort(404)
+
+    if not tournament.sign_ups_open:
+        flash("Sign-ups for this tournament are closed.", "warning")
+        return redirect(url_for("account.my_registration", slug=slug))
+
+    if tournament.status != "pending":
+        flash("This tournament is no longer accepting sign-ups.", "warning")
+        return redirect(url_for("account.my_registration", slug=slug))
+
+    already = TournamentParticipant.query.filter_by(
+        tournament_id=tid, registration_id=registration.id
+    ).first()
+    if already:
+        flash("You are already signed up for this tournament.", "info")
+        return redirect(url_for("account.my_registration", slug=slug))
+
+    cp_id = None
+    if tournament.challonge_url_slug and _challonge_configured_account():
+        try:
+            result = challonge.add_participants_bulk(
+                tournament.challonge_url_slug, [{"name": current_user.name}]
+            )
+            if isinstance(result, list) and result:
+                cp_id = result[0]["participant"]["id"]
+        except http_requests.RequestException:
+            pass  # degrade gracefully
+
+    participant = TournamentParticipant(
+        tournament_id=tid,
+        registration_id=registration.id,
+        challonge_participant_id=cp_id,
+        display_name=current_user.name,
+    )
+    db.session.add(participant)
+    db.session.commit()
+    flash("You've signed up for the tournament!", "success")
+    return redirect(url_for("account.my_registration", slug=slug))
+
+
+@account_bp.route("/events/<slug>/tournaments/<int:tid>/withdraw", methods=["POST"])
+@login_required
+def tournament_withdraw(slug, tid):
+    event = db.session.execute(
+        select(Event).filter_by(slug=slug, status="published")
+    ).scalar_one_or_none()
+    if event is None:
+        abort(404)
+
+    registration = Registration.query.filter_by(
+        user_id=current_user.id, event_id=event.id
+    ).first()
+    if registration is None:
+        abort(404)
+
+    tournament = db.session.get(Tournament, tid)
+    if tournament is None or tournament.event_id != event.id:
+        abort(404)
+
+    if tournament.status in ("underway", "complete"):
+        flash("Cannot withdraw from a tournament that is already underway.", "warning")
+        return redirect(url_for("account.my_registration", slug=slug))
+
+    participant = TournamentParticipant.query.filter_by(
+        tournament_id=tid, registration_id=registration.id
+    ).first()
+    if participant is None:
+        flash("You are not signed up for this tournament.", "info")
+        return redirect(url_for("account.my_registration", slug=slug))
+
+    if participant.challonge_participant_id and tournament.challonge_url_slug:
+        try:
+            challonge.remove_participant(tournament.challonge_url_slug, participant.challonge_participant_id)
+        except http_requests.RequestException:
+            pass  # proceed with local deletion
+
+    db.session.delete(participant)
+    db.session.commit()
+    flash("You've withdrawn from the tournament.", "success")
     return redirect(url_for("account.my_registration", slug=slug))

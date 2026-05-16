@@ -222,6 +222,57 @@
     </div>
   {% endif %}
 
+  {# Tournaments #}
+  {% if event.tournaments %}
+  <div class="card bg-base-200 shadow mb-8">
+    <div class="card-body">
+      <h2 class="card-title text-lg mb-4">Tournaments</h2>
+      {% for t in event.tournaments %}
+        <div class="{% if not loop.last %}mb-6 pb-6 border-b border-base-300{% endif %}">
+          <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
+            <div>
+              <span class="font-semibold text-lg">{{ t.name }}</span>
+              <span class="text-base-content/60 text-sm ml-2">{{ t.game_name }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="badge badge-ghost badge-sm capitalize">{{ t.format }}</span>
+              {% if t.status == 'underway' %}
+                <span class="badge badge-warning badge-sm">Underway</span>
+              {% elif t.status == 'complete' %}
+                <span class="badge badge-success badge-sm">Complete</span>
+              {% elif t.status == 'pending' and t.sign_ups_open %}
+                <span class="badge badge-info badge-sm">Sign-ups Open</span>
+              {% endif %}
+            </div>
+          </div>
+
+          {# Attendee sign-up button — only when pending + sign_ups_open + confirmed registrant #}
+          {% if t.sign_ups_open and t.status == 'pending'
+                and current_user.is_authenticated
+                and user_registration and user_registration.status == 'confirmed' %}
+            <a href="{{ url_for('account.my_registration', slug=event.slug) }}"
+               class="btn btn-primary btn-sm mt-1">Sign Up on My Registration</a>
+          {% endif %}
+
+          {# Challonge bracket embed when underway or complete #}
+          {% if t.challonge_url_slug and t.status in ('underway', 'complete') %}
+            <div class="mt-3">
+              <iframe
+                src="https://challonge.com/{{ t.challonge_url_slug }}/module?multiplier=0.7&theme=2&show_final_results=1"
+                width="100%" height="500" frameborder="0" scrolling="auto" allowtransparency="true"
+                class="rounded-box">
+              </iframe>
+            </div>
+          {% elif t.challonge_full_url %}
+            <a href="{{ t.challonge_full_url }}" target="_blank"
+               class="btn btn-outline btn-sm mt-2">View Bracket ↗</a>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   {# Attendee list #}
   {% if attendees %}
     <div class="card bg-base-200 shadow mb-8">
