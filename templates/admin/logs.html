@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% set admin = true %}
+
+{% block title %}Activity Log — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-8">
+
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-bold">Activity Log</h1>
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-ghost btn-sm">← Dashboard</a>
+  </div>
+
+  <form method="GET" class="flex gap-3 items-end mb-6">
+    <div class="form-control">
+      <label class="label pb-1"><span class="label-text font-semibold">Filter by action</span></label>
+      <select name="action" class="select select-bordered">
+        <option value="" {% if not current_action %}selected{% endif %}>All actions</option>
+        {% for a in action_types %}
+          <option value="{{ a }}" {% if a == current_action %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Filter</button>
+    {% if current_action %}
+      <a href="{{ url_for('admin.logs') }}" class="btn btn-ghost">Clear</a>
+    {% endif %}
+  </form>
+
+  {% if logs.items %}
+    <div class="overflow-x-auto">
+      <table class="table table-zebra w-full">
+        <thead>
+          <tr>
+            <th>Timestamp (UTC)</th>
+            <th>Admin</th>
+            <th>Action</th>
+            <th>Target</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in logs.items %}
+            <tr>
+              <td class="whitespace-nowrap text-sm">{{ entry.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+              <td class="text-sm">{{ entry.user.name if entry.user else "System" }}</td>
+              <td><code class="text-xs">{{ entry.action }}</code></td>
+              <td class="text-sm">
+                {% if entry.target_type and entry.target_id %}
+                  {% if entry.target_type == "event" %}
+                    <a href="{{ url_for('admin.event_detail', id=entry.target_id) }}" class="link link-primary">event #{{ entry.target_id }}</a>
+                  {% elif entry.target_type == "user" %}
+                    <a href="{{ url_for('admin.user_detail', uid=entry.target_id) }}" class="link link-primary">user #{{ entry.target_id }}</a>
+                  {% else %}
+                    {{ entry.target_type }} #{{ entry.target_id }}
+                  {% endif %}
+                {% elif entry.target_type %}
+                  {{ entry.target_type }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td class="text-sm">
+                {% if entry.details %}
+                  <code class="text-xs break-all">{{ entry.details }}</code>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if logs.pages > 1 %}
+      <div class="flex justify-center gap-2 mt-6">
+        {% if logs.has_prev %}
+          <a href="?page={{ logs.prev_num }}{% if current_action %}&action={{ current_action }}{% endif %}"
+             class="btn btn-outline btn-sm">← Previous</a>
+        {% endif %}
+        <span class="flex items-center px-3 text-sm text-base-content/70">
+          Page {{ logs.page }} of {{ logs.pages }}
+        </span>
+        {% if logs.has_next %}
+          <a href="?page={{ logs.next_num }}{% if current_action %}&action={{ current_action }}{% endif %}"
+             class="btn btn-outline btn-sm">Next →</a>
+        {% endif %}
+      </div>
+    {% endif %}
+
+  {% else %}
+    <div class="text-center py-16 text-base-content/50">
+      <p class="text-lg">No activity logged yet.</p>
+      {% if current_action %}
+        <p class="text-sm mt-2">No entries match action <code>{{ current_action }}</code>.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

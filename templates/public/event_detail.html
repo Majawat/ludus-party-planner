@@ -39,7 +39,10 @@
         </div>
         <div class="flex gap-2">
           <dt class="font-semibold min-w-24">Location</dt>
-          <dd class="text-base-content/80">{{ event.location }}</dd>
+          <dd class="text-base-content/80">
+            <a href="https://www.google.com/maps?q={{ event.location | urlencode }}"
+               target="_blank" rel="noopener noreferrer">{{ event.location }}</a>
+          </dd>
         </div>
         {% if event.gallery_url %}
           <div class="flex gap-2">

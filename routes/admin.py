@@ -8,12 +8,14 @@ from flask import Blueprint, Response, abort, flash, redirect, render_template, 
 from flask_login import current_user
 
 import challonge
+from activity import log
 from forms import (
     AdminEmailForm, AdminMarkPaidForm, AdminNotesForm, AdminSettingsForm,
     AnnouncementForm, BulkSeatForm, EventForm, EventQuestionForm, LoanerEquipmentForm,
     SeatForm, ScheduleItemForm, TicketTypeForm, TournamentForm,
 )
 from models import (
+    ActivityLog,
     Event, EventAnnouncement, EventQuestion, EventScheduleItem, LoanerEquipment, LoanerRequest,
     Registration, RegistrationAnswer, Seat, SiteSettings, TicketType, Tournament,
     TournamentParticipant, User,
@@ -124,6 +126,7 @@ def event_new():
             registration_closes_at=form.registration_closes_at.data or None,
         )
         db.session.add(event)
+        log("event.created", "event", event.id, {"name": event.name})
         db.session.commit()
         flash(f"Event '{event.name}' created.", "success")
         return redirect(url_for("admin.event_detail", id=event.id))
@@ -162,6 +165,7 @@ def event_edit(id):
         event.seating_enabled = form.seating_enabled.data
         event.registration_open = form.registration_open.data
         event.registration_closes_at = form.registration_closes_at.data or None
+        log("event.updated", "event", event.id, {"name": event.name})
         db.session.commit()
         flash("Event updated.", "success")
         return redirect(url_for("admin.event_detail", id=event.id))
@@ -218,7 +222,9 @@ def event_toggle_status(id):
     new_status = request.form.get("status")
     if new_status not in ("draft", "published", "archived"):
         abort(400)
+    old_status = event.status
     event.status = new_status
+    log("event.status_changed", "event", event.id, {"from": old_status, "to": new_status})
     db.session.commit()
     return render_template("admin/events/_status_badge.html", event=event)
 
@@ -272,6 +278,7 @@ def ticket_new(id):
             is_active=form.is_active.data,
         )
         db.session.add(ticket)
+        log("ticket_type.created", "ticket_type", ticket.id, {"name": ticket.name})
         db.session.commit()
         flash(f"Ticket type '{ticket.name}' created.", "success")
         return redirect(url_for("admin.tickets_list", id=event.id))
@@ -314,6 +321,7 @@ def ticket_edit(id, tid):
         ticket.valid_days = json.dumps(sorted(selected_days))
         ticket.max_per_user = form.max_per_user.data
         ticket.is_active = form.is_active.data
+        log("ticket_type.updated", "ticket_type", ticket.id, {"name": ticket.name})
         db.session.commit()
         flash("Ticket type updated.", "success")
         return redirect(url_for("admin.tickets_list", id=event.id))
@@ -502,6 +510,7 @@ def registration_mark_paid(id, rid):
         reg.paid_at = datetime.now(timezone.utc).replace(tzinfo=None)
         if reg.status == "pending":
             reg.status = "confirmed"
+        log("registration.marked_paid", "registration", reg.id, {"method": reg.payment_method})
         db.session.commit()
         flash("Marked as paid.", "success")
     return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
@@ -516,6 +525,7 @@ def registration_mark_comped(id, rid):
     reg.paid_at = None
     if reg.status == "pending":
         reg.status = "confirmed"
+    log("registration.marked_comped", "registration", reg.id)
     db.session.commit()
     flash("Marked as comped.", "success")
     return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
@@ -526,6 +536,7 @@ def registration_checkin(id, rid):
     event = _get_event_or_404(id)
     reg = _get_registration_or_404(event, rid)
     reg.checked_in_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    log("registration.checked_in", "registration", reg.id)
     db.session.commit()
     if request.headers.get("HX-Request"):
         return render_template("admin/events/_checkin_row.html", reg=reg, event=event)
@@ -549,6 +560,7 @@ def registration_cancel(id, rid):
     reg = _get_registration_or_404(event, rid)
     reg.status = "cancelled"
     reg.seat_id = None
+    log("registration.cancelled", "registration", reg.id)
     db.session.commit()
     flash("Registration cancelled.", "success")
     return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
@@ -561,6 +573,7 @@ def registration_notes(id, rid):
     form = AdminNotesForm(prefix="notes")
     if form.validate_on_submit():
         reg.admin_notes = form.admin_notes.data or None
+        log("registration.admin_notes_updated", "registration", reg.id)
         db.session.commit()
         flash("Notes saved.", "success")
     return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
@@ -703,6 +716,7 @@ def registration_assign_seat(id, rid):
         return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
 
     reg.seat_id = seat.id
+    log("registration.seat_assigned", "registration", reg.id, {"seat_label": seat.label})
     db.session.commit()
     flash(f"Seat '{seat.label}' assigned.", "success")
     return redirect(url_for("admin.registration_detail", id=event.id, rid=reg.id))
@@ -758,7 +772,9 @@ def user_toggle_admin(uid):
         if admin_count <= 1:
             flash("Cannot remove the last admin.", "error")
             return redirect(url_for("admin.user_detail", uid=uid))
-    user.is_admin = not user.is_admin
+    will_be_admin = not user.is_admin
+    user.is_admin = will_be_admin
+    log("user.admin_granted" if will_be_admin else "user.admin_revoked", "user", user.id)
     db.session.commit()
     action = "granted admin access" if user.is_admin else "had admin access revoked"
     flash(f"{user.name} {action}.", "success")
@@ -1000,6 +1016,7 @@ def loaner_approve(id, req_id):
     if req_obj is None or req_obj.registration.event_id != event.id:
         abort(404)
     req_obj.status = "approved"
+    log("equipment.approved", "loaner_request", req_obj.id, {"equipment": req_obj.equipment.name if req_obj.equipment else None})
     db.session.commit()
     flash("Loaner request approved.", "success")
     return redirect(url_for("admin.loaners_list", id=event.id))
@@ -1012,6 +1029,7 @@ def loaner_deny(id, req_id):
     if req_obj is None or req_obj.registration.event_id != event.id:
         abort(404)
     req_obj.status = "denied"
+    log("equipment.denied", "loaner_request", req_obj.id, {"equipment": req_obj.equipment.name if req_obj.equipment else None})
     db.session.commit()
     flash("Loaner request denied.", "success")
     return redirect(url_for("admin.loaners_list", id=event.id))
@@ -1403,6 +1421,7 @@ def tournament_start(id, tid):
 
     tournament.status = "underway"
     tournament.sign_ups_open = False
+    log("tournament.started", "tournament", tournament.id, {"name": tournament.name})
     db.session.commit()
     flash("Tournament started!", "success")
     return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
@@ -1424,6 +1443,7 @@ def tournament_reset(id, tid):
         return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
 
     tournament.status = "pending"
+    log("tournament.reset", "tournament", tournament.id, {"name": tournament.name})
     db.session.commit()
     flash("Tournament reset — results cleared.", "warning")
     return redirect(url_for("admin.tournament_detail", id=id, tid=tid))
@@ -1510,7 +1530,33 @@ def tournament_delete(id, tid):
         except http_requests.RequestException:
             pass  # Proceed with local deletion even if Challonge delete fails
 
+    _tid = tournament.id
+    _tname = tournament.name
     db.session.delete(tournament)
+    log("tournament.deleted", "tournament", _tid, {"name": _tname})
     db.session.commit()
     flash("Tournament deleted.", "success")
     return redirect(url_for("admin.tournaments_list", id=id))
+
+
+# ---------------------------------------------------------------------------
+# Activity Log
+# ---------------------------------------------------------------------------
+
+@admin_bp.route("/logs")
+def logs():
+    action_filter = request.args.get("action", "").strip()
+    page = request.args.get("page", 1, type=int)
+    action_types = db.session.execute(
+        db.select(ActivityLog.action).distinct().order_by(ActivityLog.action)
+    ).scalars().all()
+    query = db.select(ActivityLog).order_by(ActivityLog.created_at.desc())
+    if action_filter:
+        query = query.where(ActivityLog.action == action_filter)
+    pagination = db.paginate(query, page=page, per_page=50)
+    return render_template(
+        "admin/logs.html",
+        logs=pagination,
+        action_types=action_types,
+        current_action=action_filter,
+    )
