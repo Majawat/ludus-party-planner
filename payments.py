@@ -8,7 +8,7 @@ from models import SiteSettings
 
 # ── Stripe ───────────────────────────────────────────────────────────────────
 
-def create_stripe_session(registration, event, ticket_type, success_url, cancel_url):
+def create_stripe_session(registration, event, ticket_type, success_url, cancel_url, customer_email=None):
     """Return (session_id, checkout_url) or raise on API error."""
     stripe.api_key = SiteSettings.get("stripe_secret_key", "")
     session = stripe.checkout.Session.create(
@@ -25,6 +25,7 @@ def create_stripe_session(registration, event, ticket_type, success_url, cancel_
         metadata={"registration_id": str(registration.id)},
         success_url=success_url,
         cancel_url=cancel_url,
+        **({"customer_email": customer_email} if customer_email else {}),
     )
     return session.id, session.url
 

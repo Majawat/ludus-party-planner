@@ -263,6 +263,11 @@ class TestAccountDisconnect:
         profile_resp = client.get("/account")
         assert b"Not connected" in profile_resp.data or b"Connect" in profile_resp.data
 
+        with app.app_context():
+            assert UserPlatformAccount.query.filter_by(
+                user_id=oauth_user.id, platform="discord"
+            ).first() is None
+
     def test_disconnect_unknown_provider_404(self, client, regular_user):
         _login(client, regular_user, "userpass123")
         resp = client.post("/account/disconnect/twitter")

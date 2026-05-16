@@ -1,6 +1,6 @@
 import json
 import pytest
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 from app import create_app
@@ -90,8 +90,8 @@ def published_event(app):
         status="published",
         short_description="A test event.",
         description="<p>Full description here.</p>",
-        start_datetime=datetime(2026, 8, 7, 18, 0, 0),
-        end_datetime=datetime(2026, 8, 9, 18, 0, 0),
+        start_datetime=utcnow() + timedelta(days=90),
+        end_datetime=utcnow() + timedelta(days=92),
         location="Test Venue",
         seating_enabled=True,
         registration_open=True,
@@ -110,8 +110,8 @@ def draft_event(app):
         status="draft",
         short_description="Not visible.",
         description="<p>Draft content.</p>",
-        start_datetime=datetime(2026, 9, 1, 18, 0, 0),
-        end_datetime=datetime(2026, 9, 2, 18, 0, 0),
+        start_datetime=utcnow() + timedelta(days=120),
+        end_datetime=utcnow() + timedelta(days=121),
         location="Nowhere",
         seating_enabled=False,
         registration_open=False,
