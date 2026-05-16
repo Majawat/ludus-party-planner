@@ -1,5 +1,5 @@
 import re
-import time
+import uuid
 
 import requests
 
@@ -72,7 +72,8 @@ def delete_tournament(url_slug):
 
 
 def generate_url_slug(event_name, tournament_name, username):
-    """Generate a Challonge-safe URL slug unique-ified with a timestamp suffix."""
+    """Generate a Challonge-safe URL slug with a unique UUID suffix."""
     base = f"{username}-{event_name}-{tournament_name}"
     slug = re.sub(r"[^a-z0-9]+", "-", base.lower()).strip("-")[:50]
-    return f"{slug}-{int(time.time()) % 10000}"
+    suffix = uuid.uuid4().hex[:8]
+    return f"{slug}-{suffix}"

@@ -1,8 +1,10 @@
 import html
-import time
+import logging
 import xml.etree.ElementTree as ET
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 
 def search_bgg(query: str) -> list[dict]:
@@ -42,8 +44,9 @@ def get_bgg_game(bgg_id: int | str) -> dict | None:
 
     resp = requests.get(url, params=params, timeout=10)
     if resp.status_code == 202:
-        time.sleep(2)
         resp = requests.get(url, params=params, timeout=10)
+    if resp.status_code == 202:
+        return None  # BGG still processing; caller handles gracefully
     resp.raise_for_status()
 
     root = ET.fromstring(resp.content)
@@ -135,11 +138,11 @@ def search_games(query: str, source: str = "all") -> list[dict]:
     if source in ("bgg", "all"):
         try:
             results.extend(search_bgg(query.strip()))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("game_lookup: bgg search failed: %s", e)
     if source in ("steam", "all"):
         try:
             results.extend(search_steam(query.strip()))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("game_lookup: steam search failed: %s", e)
     return results

@@ -1,9 +1,11 @@
 """Tests for v1.3 features: Challonge tournament integration."""
+import re
 import pytest
 import requests as http_requests
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
+from challonge import generate_url_slug
 from models import (
     SiteSettings, Tournament, TournamentParticipant,
     Registration, TicketType,
@@ -553,3 +555,26 @@ class TestTournamentSecurity:
         )
         assert resp.status_code == 302
         assert "/login" in resp.headers["Location"]
+
+
+# ---------------------------------------------------------------------------
+# FIX 6 — generate_url_slug uses UUID suffix (8 hex chars)
+# ---------------------------------------------------------------------------
+
+class TestGenerateUrlSlug:
+    def test_suffix_is_8_hex_characters(self):
+        slug = generate_url_slug("Summer LAN", "Bracket 1", "testuser")
+        parts = slug.rsplit("-", 1)
+        assert len(parts) == 2
+        suffix = parts[1]
+        assert len(suffix) == 8
+        assert re.fullmatch(r"[0-9a-f]{8}", suffix), f"Suffix is not 8 hex chars: {suffix!r}"
+
+    def test_slug_is_url_safe(self):
+        slug = generate_url_slug("Summer LAN!", "My Bracket #1", "testuser")
+        assert re.fullmatch(r"[a-z0-9\-]+", slug), f"Slug contains invalid chars: {slug!r}"
+
+    def test_slugs_are_unique_across_calls(self):
+        slug1 = generate_url_slug("Event", "Bracket", "user")
+        slug2 = generate_url_slug("Event", "Bracket", "user")
+        assert slug1 != slug2, "Two calls with same inputs must produce different slugs"
