@@ -523,11 +523,12 @@ class TestGetITADPrices:
             result = get_itad_prices(123)
         assert result is None
 
-    def test_returns_none_on_api_error(self):
-        with patch("game_lookup.SiteSettings.get", return_value="test_key"), \
-             patch("game_lookup.requests.get",
-                   side_effect=req.RequestException("timeout")) as mock_req:
-            result = get_itad_prices(123)
+    def test_returns_none_on_api_error(self, app):
+        with app.app_context():
+            with patch("game_lookup.SiteSettings.get", return_value="test_key"), \
+                 patch("game_lookup.requests.get",
+                       side_effect=req.RequestException("timeout")) as mock_req:
+                result = get_itad_prices(123)
         assert result is None
         mock_req.assert_called_once()
 
@@ -567,7 +568,7 @@ class TestSuggestionDisplay:
     def test_itad_link_shown_for_steam_suggestions(self, client, published_event, steam_suggestion):
         resp = client.get(f"/events/{published_event.slug}")
         assert resp.status_code == 200
-        assert b"isthereanydeal.com" in resp.data
+        assert b"isthereanydeal.com/steam/app/289070" in resp.data
 
     def test_itad_link_not_shown_for_bgg_suggestions(self, client, published_event, rich_suggestion):
         resp = client.get(f"/events/{published_event.slug}")

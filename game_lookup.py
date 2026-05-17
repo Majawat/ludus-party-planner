@@ -4,6 +4,7 @@ import time
 import xml.etree.ElementTree as ET
 
 import requests
+from flask import current_app
 
 from models import SiteSettings
 
@@ -183,7 +184,11 @@ def get_itad_prices(steam_app_id: int | str) -> dict | None:
             "itad_url": itad_url,
         }
     except Exception as e:
-        logger.warning("ITAD price lookup failed for steam_app_id=%s: %s", steam_app_id, e)
+        status = getattr(getattr(e, "response", None), "status_code", None)
+        current_app.logger.warning(
+            f"ITAD price lookup failed for steam_app_id={steam_app_id}: "
+            f"type={type(e).__name__} status={status}"
+        )
         return None
 
 
