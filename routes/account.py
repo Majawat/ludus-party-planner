@@ -1012,7 +1012,8 @@ def security():
     if current_user.totp_backup_codes:
         try:
             backup_code_count = len(json.loads(current_user.totp_backup_codes))
-        except Exception:
+        except Exception as e:
+            current_app.logger.warning(f"Failed to parse totp_backup_codes for user {current_user.id}: {e}")
             backup_code_count = 0
     return render_template(
         "account/security.html",
@@ -1029,7 +1030,7 @@ def security_setup():
         _generate_totp_secret, _get_totp_uri, _verify_totp_code,
         _generate_backup_codes, _verify_backup_code, _qr_code_data_uri,
     ) = _get_totp_helpers()
-    secret = _generate_totp_secret()
+    secret = session.get("totp_setup_secret") or _generate_totp_secret()
     session["totp_setup_secret"] = secret
     uri = _get_totp_uri(secret, current_user.email)
     qr_data_uri = _qr_code_data_uri(uri)
@@ -1053,7 +1054,10 @@ def security_verify_setup():
     code = request.form.get("code", "").strip()
     if not _verify_totp_code(secret, code):
         flash("Invalid code. Please try the code from your app.", "error")
-        return redirect(url_for("account.security_setup"))
+        uri = _get_totp_uri(secret, current_user.email)
+        qr_data_uri = _qr_code_data_uri(uri)
+        return render_template("account/security_setup.html",
+                               qr_data_uri=qr_data_uri, secret=secret)
     raw_codes, hashed_codes = _generate_backup_codes()
     current_user.totp_secret = secret
     current_user.totp_backup_codes = json.dumps(hashed_codes)

@@ -239,8 +239,9 @@ def test_verify_setup_invalid_code_rejected(client, regular_user):
         data={"code": "000000"},
         follow_redirects=False,
     )
-    assert resp.status_code == 302
-    assert "/security/setup" in resp.headers["Location"]
+    # Invalid code renders the setup page directly (200) rather than redirecting,
+    # so the user sees the same QR code and can try again without a secret rotation.
+    assert resp.status_code == 200
 
     db.session.refresh(regular_user)
     assert regular_user.totp_secret is None
@@ -420,3 +421,86 @@ def test_backup_code_is_single_use(client, user_with_2fa):
     from werkzeug.security import check_password_hash
     for hashed in remaining:
         assert not check_password_hash(hashed, raw_code)
+
+
+def test_setup_reuses_secret_on_retry(client, regular_user):
+    """GET /account/security/setup twice reuses the same session secret rather than generating a new one."""
+    _login(client, "user@example.com", "userpass123")
+
+    client.get("/account/security/setup")
+    with client.session_transaction() as sess:
+        secret_first = sess.get("totp_setup_secret")
+
+    client.get("/account/security/setup")
+    with client.session_transaction() as sess:
+        secret_second = sess.get("totp_setup_secret")
+
+    assert secret_first is not None
+    assert secret_first == secret_second
+
+
+def test_2fa_attempts_cleared_on_new_login(client, user_with_2fa):
+    """Stale 2fa_attempts from a previous session don't carry over to a fresh login challenge."""
+    # Fail the 2FA challenge 3 times in one "session"
+    with client.session_transaction() as sess:
+        sess["pending_2fa_user_id"] = user_with_2fa.id
+        sess["pending_2fa_remember"] = False
+
+    for _ in range(3):
+        client.post("/auth/2fa/verify", data={"code": "000000"})
+
+    # Log out (clears 2FA state)
+    client.post("/logout")
+
+    # Start a fresh login challenge — should reset the attempt counter
+    resp = client.post(
+        "/login",
+        data={"email": "twofauser@example.com", "password": "securepass123"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert "/auth/2fa/verify" in resp.headers["Location"]
+
+    # One more bad code — should NOT trigger lockout (counter was reset)
+    resp = client.post("/auth/2fa/verify", data={"code": "000000"}, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Invalid code" in resp.data
+
+
+def test_next_param_preserved_through_2fa(client, user_with_2fa):
+    """A ?next= param on login is preserved through the 2FA challenge and honoured on success."""
+    resp = client.post(
+        "/login?next=/account",
+        data={"email": "twofauser@example.com", "password": "securepass123"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert "/auth/2fa/verify" in resp.headers["Location"]
+
+    totp = pyotp.TOTP(user_with_2fa.totp_secret)
+    resp2 = client.post(
+        "/auth/2fa/verify",
+        data={"code": totp.now()},
+        follow_redirects=False,
+    )
+    assert resp2.status_code == 302
+    assert "/account" in resp2.headers["Location"]
+
+
+def test_logout_clears_2fa_session_state(client, regular_user):
+    """Logging out clears all pending 2FA session keys."""
+    # Log in as a normal user (no 2FA), inject stale 2FA state, then log out.
+    _login(client, "user@example.com", "userpass123")
+    with client.session_transaction() as sess:
+        sess["pending_2fa_user_id"] = 99
+        sess["pending_2fa_remember"] = True
+        sess["pending_2fa_next"] = "/account"
+        sess["2fa_attempts"] = 3
+
+    client.post("/logout")
+
+    with client.session_transaction() as sess:
+        assert "pending_2fa_user_id" not in sess
+        assert "pending_2fa_remember" not in sess
+        assert "pending_2fa_next" not in sess
+        assert "2fa_attempts" not in sess

@@ -91,7 +91,13 @@ def _verify_backup_code(user, code):
     from werkzeug.security import check_password_hash
     if not user.totp_backup_codes:
         return False
-    codes = _json.loads(user.totp_backup_codes)
+    try:
+        codes = _json.loads(user.totp_backup_codes)
+        if not isinstance(codes, list):
+            raise ValueError("backup codes not a list")
+    except Exception as e:
+        current_app.logger.warning(f"Failed to parse totp_backup_codes for user {user.id}: {e}")
+        return False
     for i, hashed in enumerate(codes):
         if check_password_hash(hashed, code.upper().strip()):
             codes.pop(i)
@@ -189,8 +195,15 @@ def login():
         user = User.query.filter_by(email=form.email.data.lower()).first()
         if user and user.check_password(form.password.data):
             if user.has_2fa:
+                session.pop("2fa_attempts", None)
                 session["pending_2fa_user_id"] = user.id
                 session["pending_2fa_remember"] = form.remember_me.data
+                next_page = request.args.get("next")
+                if next_page:
+                    next_page = next_page.replace("\\", "")
+                    parsed = urlparse(next_page)
+                    if not parsed.netloc and not parsed.scheme:
+                        session["pending_2fa_next"] = next_page
                 return redirect(url_for("auth.verify_2fa"))
             login_user(user, remember=form.remember_me.data)
             next_page = request.args.get("next")
@@ -213,6 +226,10 @@ def login():
 @login_required
 def logout():
     logout_user()
+    session.pop("pending_2fa_user_id", None)
+    session.pop("pending_2fa_remember", None)
+    session.pop("pending_2fa_next", None)
+    session.pop("2fa_attempts", None)
     flash("You have been logged out.", "success")
     return redirect(url_for("public.index"))
 
@@ -581,6 +598,7 @@ def verify_2fa():
         if attempts > 5:
             session.pop("pending_2fa_user_id", None)
             session.pop("pending_2fa_remember", None)
+            session.pop("pending_2fa_next", None)
             session.pop("2fa_attempts", None)
             flash("Too many attempts. Please log in again.", "error")
             return redirect(url_for("auth.login"))
@@ -605,7 +623,7 @@ def verify_2fa():
         session.pop("pending_2fa_user_id", None)
         session.pop("2fa_attempts", None)
         login_user(user, remember=remember)
-        next_page = request.args.get("next")
+        next_page = session.pop("pending_2fa_next", None) or request.args.get("next")
         if next_page:
             next_page = next_page.replace("\\", "")
             parsed = urlparse(next_page)
@@ -727,6 +745,7 @@ def passkey_login_complete():
     cred.last_used_at = utcnow()
     db.session.commit()
     if getattr(cred.user, "totp_secret", None):
+        session.pop("2fa_attempts", None)
         session["pending_2fa_user_id"] = cred.user.id
         return {"ok": True, "redirect": url_for("auth.verify_2fa")}
     login_user(cred.user)
