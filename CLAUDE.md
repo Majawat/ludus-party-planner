@@ -136,7 +136,7 @@ ludus/
 │       ├── settings.html
 │       ├── email.html
 │       ├── equipment.html
-│       ├── logs.html                  # Activity log [planned-v1.3]
+│       ├── logs.html                  # Activity log
 │       ├── events/
 │       │   ├── list.html
 │       │   ├── detail.html
@@ -195,7 +195,9 @@ ludus/
 │   ├── test_steam.py       # Steam OpenID login, account linking, disconnect
 │   ├── test_v11.py         # Schedule, potluck, loaner equipment, announcements, check-in mode
 │   ├── test_v12.py         # Game suggestions + voting, visual seat map/claim/release
-│   └── test_v13.py         # Challonge tournament CRUD, participants, matches, reporting
+│   ├── test_v13.py         # Challonge tournament CRUD, participants, matches, reporting
+│   ├── test_v14.py         # v1.3 remaining: activity logging, location link, UI tests
+│   └── test_passkeys.py    # WebAuthn passkey registration, login, removal
 │
 ├── .env                    # Secrets — gitignored
 ├── .env.example            # Template committed to repo
@@ -364,10 +366,7 @@ privacy_policy                   = ""
 registration_enabled             = "true"
 show_upcoming_event_on_homepage  = "true"
 venmo_handle                     = ""
-default_dark_theme               = "dark"
-default_light_theme              = "light"
-allowed_themes                   = "[\"dark\",\"dracula\",\"night\",\"synthwave\",\"halloween\",\"forest\",\"black\",\"luxury\",\"dim\",\"light\",\"cupcake\",\"retro\",\"garden\",\"lofi\",\"autumn\",\"nord\"]"
-totp_required_for_admin          = "false"
+ui_theme                         = "dark"
 discord_oauth_client_id          = ""
 discord_oauth_client_secret      = ""
 google_oauth_client_id           = ""
@@ -392,11 +391,8 @@ webauthn_origin                  = ""   -- e.g. "https://yourlan.party"; require
 ```
 
 The first-run wizard also writes `setup_complete = "true"` when onboarding is done.
-`base.html` selects the active theme via an inline script before `<body>` content:
-(1) use `current_user.preferred_theme` if set and present in `allowed_themes`,
-(2) else use `default_dark_theme` if the browser reports `prefers-color-scheme: dark`,
-(3) else use `default_light_theme`. Admin pages always render with `data-theme="dim"`.
-The admin settings page shows two separate selects — one for each default theme.
+`base.html` reads `ui_theme` from the context processor. Admin pages always render
+with `data-theme="dim"`.
 
 ---
 
@@ -676,7 +672,7 @@ created_at                  DATETIME DEFAULT NOW NOT NULL
 
 ---
 
-### webauthn_credentials [planned-v1.3]
+### webauthn_credentials
 ```
 id              INTEGER PK
 user_id         INTEGER FK -> users NOT NULL
@@ -689,7 +685,7 @@ created_at      DATETIME NOT NULL
 
 ---
 
-### activity_log [planned-v1.3]
+### activity_log
 ```
 id          INTEGER PK
 user_id     INTEGER FK -> users NULLABLE  -- NULL = system action
@@ -730,7 +726,7 @@ GET  /ping                          JSON health check {"status": "ok"}
 ```
 GET  POST  /setup                   Step 1: create first admin account
 GET  POST  /setup/site              Step 2: site name, tagline, theme
-GET        /setup/complete          Mark setup_complete=true, show completion page
+GET        /setup/complete          Show completion page (read-only; setup_complete is written by step2 POST)
 ```
 
 ### Public blueprint (routes/public.py)
@@ -870,7 +866,7 @@ POST       /admin/users/<uid>/toggle-admin  Toggle admin (cannot demote self or 
 GET  POST  /admin/email             Mass email composer
 
 GET        /admin/logs              Activity log — paginated 50/page, newest first,
-                                    filterable by action type [planned-v1.3]
+                                    filterable by action type
 ```
 
 ---
@@ -928,17 +924,19 @@ GET        /admin/logs              Activity log — paginated 50/page, newest f
 - Payment processor choice at registration (stripe/paypal/pay later)
 - `stripe_session_id`, `paypal_order_id`, `payment_processor` fields on Registration
 
-**v1.3 Partial**
+**v1.3 Complete**
 - Challonge tournament integration (challonge.py + full admin UI):
   create, participants (from attendees or manual), start, reset, open matches,
   report match results, delete
 - Attendees can self-sign-up / withdraw via /events/<slug>/tournaments/<tid>/signup
 - Challonge API credentials configured in admin settings
+- General activity logging — `activity_log` table, `activity.py`, `/admin/logs` view
+  paginated 50/page, filterable by action type
+- Passkeys (WebAuthn) — passkey registration, login, and removal; `webauthn_credentials`
+  table; WebAuthn routes in routes/auth.py; `passkeys_enabled` site setting
 
 Still planned for v1.3 (not yet built):
-- Passkeys (WebAuthn) — see Remaining Roadmap
 - Location map embed — `location_map_embed_url` field on events, iframe on event detail
-- General activity logging — `activity_log` table, `activity.py`, `/admin/logs` view
 
 ### Deferred (Not Built)
 
@@ -955,18 +953,6 @@ Still planned for v1.3 (not yet built):
 ## Remaining Roadmap
 
 ### v1.3 — Remaining planned features
-
-**Passkeys (WebAuthn)**
-- Schema: `webauthn_credentials` table — see Database Schema section.
-- Library: `webauthn` (pip). Handles both registration and authentication
-  ceremonies per WebAuthn spec.
-- Routes on the account blueprint: `GET/POST /account/passkeys` (list and
-  delete), `POST /account/passkeys/register/begin` + `/complete` (registration
-  ceremony, returns JSON), `POST /auth/passkey/begin` + `/complete`
-  (authentication ceremony, returns JSON). These endpoints return JSON and are
-  CSRF-exempt; use `@csrf.exempt` from `extensions.py`.
-- Login page needs a "Use passkey" button that triggers the authentication ceremony
-  via the WebAuthn browser API.
 
 **Location Map Embed**
 - New field: `events.location_map_embed_url` (TEXT NULLABLE). Migration required;
@@ -987,14 +973,6 @@ Still planned for v1.3 (not yet built):
      target="_blank" rel="noopener">{{ event.location }}</a>
   ```
   This works for plain addresses and GPS coordinates alike.
-
-**General Activity Logging**
-- New table: `activity_log` — see Database Schema section.
-- New file: `activity.py` with a single `log()` helper — see Helper Modules section.
-- Admin view: `GET /admin/logs` — paginated list (50/page), newest first.
-  Shows: timestamp, admin name, action, target type/id, details JSON.
-  Filterable by action type via dropdown. Link from admin dashboard.
-- Migration required; new table (no alter needed).
 
 ---
 
@@ -1091,15 +1069,11 @@ Stripe keys, PayPal keys, Challonge keys → site_settings table
 **Admin panel always uses data-theme="dim"**
 Regardless of any theme settings. Hard-coded in base.html for /admin/* routes.
 
-**Theme selection: site defaults + per-user preference + browser hint**
-Two site_settings keys replace the old single `ui_theme` key: `default_dark_theme`
-and `default_light_theme`. An `allowed_themes` key (JSON array) controls which
-themes users may choose. `base.html` picks the active theme via an inline script
-before `<body>` content: (1) use `current_user.preferred_theme` if set and in
-`allowed_themes`; (2) else use `default_dark_theme` if browser reports
-`prefers-color-scheme: dark`; (3) else use `default_light_theme`. Admin pages
-always use `dim`. The admin settings page shows two separate selects, one per
-default theme.
+**Theme selection: single site default key**
+A single `ui_theme` site_settings key controls the active theme. Admin pages
+always render with `data-theme="dim"`. The `base.html` template reads `ui_theme`
+from the context processor. v1.4 will add `default_dark_theme`, `default_light_theme`,
+`allowed_themes`, and per-user `preferred_theme` preference.
 
 **What to bring lives in description**
 No separate `what_to_bring` field. Operators include it in the event description.
@@ -1210,13 +1184,10 @@ dark, dracula, night, synthwave, halloween, forest, black, luxury, dim
 **Light themes:**
 light, cupcake, retro, garden, lofi, autumn, nord
 
-Default dark theme on first install: `dark`
-Default light theme on first install: `light`
+Default theme on first install: `dark` (controlled by `ui_theme` site setting).
 
-The admin settings page shows two separate selects — one for `default_dark_theme`
-(picks from the dark list) and one for `default_light_theme` (picks from the light
-list). The `allowed_themes` setting (v1.4) restricts which themes users may set
-as their personal preference.
+The admin settings page shows a single theme select. v1.4 will add separate dark/light
+selects and per-user theme preference with `allowed_themes` restriction.
 
 ---
 
@@ -1232,6 +1203,40 @@ Two layers, both required:
 2. **Email verification required** before registering for events.
 
 Cloudflare Turnstile may be added later if needed. Do not add reCAPTCHA v2.
+
+---
+
+## Coding Conventions
+
+**`_BOOL_SETTINGS` invariant (critical)**
+Every BooleanField in `AdminSettingsForm` in `forms.py` must have its field name
+listed in `_BOOL_SETTINGS` in `routes/admin.py`. If a BooleanField is not in
+`_BOOL_SETTINGS`, the settings form stores Python `True`/`False` instead of the
+string `"true"`/`"false"`, silently breaking every `SiteSettings.get(...) == "true"`
+check. When adding any new BooleanField to `AdminSettingsForm`, add its name to
+`_BOOL_SETTINGS` in the same commit. Comments in both files point to this dependency.
+
+**State-changing routes must use POST only**
+Every route that creates, updates, or deletes database records must declare
+`methods=["POST"]`. GET requests must never modify state. Certain GET routes are
+legitimate exceptions due to external protocol constraints (email links, OAuth/OpenID
+callbacks, payment processor return URLs) — these must have a comment explaining
+why GET is acceptable. When adding a new state-changing route, verify
+`methods=["POST"]` is explicit and add a test that GET returns 405.
+
+**Cross-file consistency**
+When a constant set, list, or allowlist in one file must stay synchronized with
+definitions in another file, add a comment in both files naming the dependency.
+Never update one without the other. Example: `_VALID_PROVIDERS` in `routes/auth.py`
+is duplicated as inline literals in `routes/account.py`; both files carry comments
+pointing to each other.
+
+**Silent exception handling**
+Every `except` clause that catches broadly (e.g., `except Exception`) must call
+`current_app.logger.warning(f"<context>: {e}")` before the fallback return.
+Intentional exceptions to this rule: (1) `activity.log()` — documented as
+never-crash by design; (2) email sends in registration routes — best-effort, a
+failed email must not prevent the registration from succeeding.
 
 ---
 
@@ -1331,7 +1336,7 @@ flask db upgrade             # Apply pending migrations
 - Test database is always in-memory SQLite — never touches `data/ludus.db`
 
 ### Test Count
-**355 tests** across 12 test files.
+**402 tests** across 14 test files. Run `pytest --collect-only -q | tail -1` for the current count.
 
 ### Folder Structure
 ```
@@ -1351,7 +1356,9 @@ tests/
 ├── test_v11.py           # 44 tests — schedule, potluck, loaner equipment,
 │                         #            announcements, check-in mode
 ├── test_v12.py           # 25 tests — game suggestions + voting, visual seat map
-└── test_v13.py           # 35 tests — Challonge tournament CRUD, participants, matches
+├── test_v13.py           # 35 tests — Challonge tournament CRUD, participants, matches
+├── test_v14.py           # 15 tests — activity logging, location link, logout POST guard
+└── test_passkeys.py      # 21 tests — WebAuthn registration, login, removal, malformed JSON
 ```
 
 ### conftest.py Fixtures

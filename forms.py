@@ -229,19 +229,24 @@ class AdminSettingsForm(FlaskForm):
     facebook_url = StringField("Facebook URL", validators=[Optional()])
     terms_of_service = TextAreaField("Terms of Service", validators=[Optional()])
     privacy_policy = TextAreaField("Privacy Policy", validators=[Optional()])
+    # NOTE: field name must also be in _BOOL_SETTINGS in routes/admin.py
     registration_enabled = BooleanField("Registration Enabled")
+    # NOTE: field name must also be in _BOOL_SETTINGS in routes/admin.py
     show_upcoming_event_on_homepage = BooleanField("Show Upcoming Event on Homepage")
     ui_theme = SelectField("Site Theme", choices=_THEME_CHOICES)
     discord_oauth_client_id = StringField("Discord Client ID", validators=[Optional()])
     discord_oauth_client_secret = StringField("Discord Client Secret", validators=[Optional()])
     google_oauth_client_id = StringField("Google Client ID", validators=[Optional()])
     google_oauth_client_secret = StringField("Google Client Secret", validators=[Optional()])
+    # NOTE: field name must also be in _BOOL_SETTINGS in routes/admin.py
     steam_enabled = BooleanField("Enable Steam Login")
     steam_api_key = StringField("Steam API Key", validators=[Optional()])
+    # NOTE: field name must also be in _BOOL_SETTINGS in routes/admin.py
     stripe_enabled = BooleanField("Enable Stripe Payments")
     stripe_publishable_key = StringField("Stripe Publishable Key", validators=[Optional()])
     stripe_secret_key = StringField("Stripe Secret Key", validators=[Optional()])
     stripe_webhook_secret = StringField("Stripe Webhook Secret", validators=[Optional()])
+    # NOTE: field name must also be in _BOOL_SETTINGS in routes/admin.py
     paypal_enabled = BooleanField("Enable PayPal Payments")
     paypal_client_id = StringField("PayPal Client ID", validators=[Optional()])
     paypal_client_secret = StringField("PayPal Client Secret", validators=[Optional()])
@@ -249,6 +254,7 @@ class AdminSettingsForm(FlaskForm):
     paypal_webhook_id = StringField("PayPal Webhook ID", validators=[Optional()])
     challonge_api_key = StringField("Challonge API Key", validators=[Optional()])
     challonge_username = StringField("Challonge Username", validators=[Optional()])
+    # NOTE: field name must also be in _BOOL_SETTINGS in routes/admin.py
     passkeys_enabled = BooleanField("Enable Passkeys")
     webauthn_rp_id = StringField("WebAuthn RP ID", validators=[Optional()])
     webauthn_origin = StringField("WebAuthn Origin", validators=[Optional()])

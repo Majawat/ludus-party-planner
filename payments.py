@@ -3,6 +3,7 @@ import json
 import stripe
 import requests as http
 
+from flask import current_app
 from models import SiteSettings
 
 
@@ -35,7 +36,8 @@ def retrieve_stripe_session(session_id):
     try:
         stripe.api_key = SiteSettings.get("stripe_secret_key", "")
         return stripe.checkout.Session.retrieve(session_id)
-    except Exception:
+    except Exception as e:
+        current_app.logger.warning(f"retrieve_stripe_session failed for {session_id!r}: {e}")
         return None
 
 
@@ -115,7 +117,8 @@ def capture_paypal_order(order_id):
         )
         resp.raise_for_status()
         return resp.json().get("status") == "COMPLETED"
-    except Exception:
+    except Exception as e:
+        current_app.logger.warning(f"capture_paypal_order failed for {order_id!r}: {e}")
         return False
 
 
@@ -138,5 +141,6 @@ def verify_paypal_webhook(headers, raw_body):
             timeout=10,
         )
         return resp.json().get("verification_status") == "SUCCESS"
-    except Exception:
+    except Exception as e:
+        current_app.logger.warning(f"verify_paypal_webhook failed: {e}")
         return False
