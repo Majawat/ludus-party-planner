@@ -136,7 +136,7 @@ ludus/
 │       ├── settings.html
 │       ├── email.html
 │       ├── equipment.html
-│       ├── logs.html                  # Activity log [planned-v1.3]
+│       ├── logs.html                  # Activity log
 │       ├── events/
 │       │   ├── list.html
 │       │   ├── detail.html
@@ -726,7 +726,7 @@ GET  /ping                          JSON health check {"status": "ok"}
 ```
 GET  POST  /setup                   Step 1: create first admin account
 GET  POST  /setup/site              Step 2: site name, tagline, theme
-GET        /setup/complete          Mark setup_complete=true, show completion page
+GET        /setup/complete          Show completion page (read-only; setup_complete is written by step2 POST)
 ```
 
 ### Public blueprint (routes/public.py)
@@ -866,7 +866,7 @@ POST       /admin/users/<uid>/toggle-admin  Toggle admin (cannot demote self or 
 GET  POST  /admin/email             Mass email composer
 
 GET        /admin/logs              Activity log — paginated 50/page, newest first,
-                                    filterable by action type [planned-v1.3]
+                                    filterable by action type
 ```
 
 ---
@@ -1336,7 +1336,7 @@ flask db upgrade             # Apply pending migrations
 - Test database is always in-memory SQLite — never touches `data/ludus.db`
 
 ### Test Count
-**391 tests** across 14 test files. Run `pytest --collect-only -q | tail -1` for the current count.
+**402 tests** across 14 test files. Run `pytest --collect-only -q | tail -1` for the current count.
 
 ### Folder Structure
 ```
