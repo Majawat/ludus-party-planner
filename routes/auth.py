@@ -52,6 +52,64 @@ def _get_origin():
         return configured.rstrip("/")
     return request.host_url.rstrip("/")
 
+
+# ---------------------------------------------------------------------------
+# TOTP helpers
+# ---------------------------------------------------------------------------
+
+def _generate_totp_secret():
+    import pyotp
+    return pyotp.random_base32()
+
+
+def _get_totp_uri(secret, user_email):
+    import pyotp
+    site_name = SiteSettings.get("site_name", "Ludus Party Planner")
+    return pyotp.totp.TOTP(secret).provisioning_uri(
+        name=user_email,
+        issuer_name=site_name,
+    )
+
+
+def _verify_totp_code(secret, code):
+    import pyotp
+    return pyotp.TOTP(secret).verify(code, valid_window=1)
+
+
+def _generate_backup_codes():
+    """Returns (raw_codes, hashed_codes). Raw codes shown once to user."""
+    import secrets as _secrets
+    from werkzeug.security import generate_password_hash
+    raw = [_secrets.token_hex(4).upper() for _ in range(8)]
+    hashed = [generate_password_hash(c) for c in raw]
+    return raw, hashed
+
+
+def _verify_backup_code(user, code):
+    """Check code against stored hashes. Removes the used code. Returns True if valid."""
+    import json as _json
+    from werkzeug.security import check_password_hash
+    if not user.totp_backup_codes:
+        return False
+    codes = _json.loads(user.totp_backup_codes)
+    for i, hashed in enumerate(codes):
+        if check_password_hash(hashed, code.upper().strip()):
+            codes.pop(i)
+            user.totp_backup_codes = _json.dumps(codes)
+            return True
+    return False
+
+
+def _qr_code_data_uri(uri):
+    """Generate QR code as a base64 PNG data URI. No file written to disk."""
+    import io, base64, qrcode
+    img = qrcode.make(uri)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode()
+    return f"data:image/png;base64,{b64}"
+
+
 _PROVIDER_CONFIG = {
     "discord": {
         "client_kwargs": {"scope": "identify email"},
@@ -130,6 +188,10 @@ def login():
     if form.validate_on_submit():
         user = User.query.filter_by(email=form.email.data.lower()).first()
         if user and user.check_password(form.password.data):
+            if user.has_2fa:
+                session["pending_2fa_user_id"] = user.id
+                session["pending_2fa_remember"] = form.remember_me.data
+                return redirect(url_for("auth.verify_2fa"))
             login_user(user, remember=form.remember_me.data)
             next_page = request.args.get("next")
             if next_page:
@@ -497,6 +559,61 @@ def steam_complete_registration():
         return redirect(url_for("account.dashboard"))
 
     return render_template("auth/steam_complete_registration.html", form=form)
+
+
+# ---------------------------------------------------------------------------
+# 2FA / TOTP routes
+# ---------------------------------------------------------------------------
+
+@auth_bp.route("/auth/2fa/verify", methods=["GET", "POST"])
+def verify_2fa():
+    user_id = session.get("pending_2fa_user_id")
+    if not user_id:
+        return redirect(url_for("auth.login"))
+    user = db.session.get(User, user_id)
+    if not user:
+        session.pop("pending_2fa_user_id", None)
+        return redirect(url_for("auth.login"))
+
+    if request.method == "POST":
+        attempts = session.get("2fa_attempts", 0) + 1
+        session["2fa_attempts"] = attempts
+        if attempts > 5:
+            session.pop("pending_2fa_user_id", None)
+            session.pop("pending_2fa_remember", None)
+            session.pop("2fa_attempts", None)
+            flash("Too many attempts. Please log in again.", "error")
+            return redirect(url_for("auth.login"))
+
+        code = request.form.get("code", "").strip()
+        use_backup = request.form.get("use_backup") == "1"
+
+        if use_backup:
+            valid = _verify_backup_code(user, code)
+            if valid:
+                db.session.commit()
+            else:
+                flash("Invalid backup code.", "error")
+                return render_template("auth/2fa_verify.html")
+        else:
+            valid = _verify_totp_code(user.totp_secret, code)
+            if not valid:
+                flash("Invalid code. Please try again.", "error")
+                return render_template("auth/2fa_verify.html")
+
+        remember = session.pop("pending_2fa_remember", False)
+        session.pop("pending_2fa_user_id", None)
+        session.pop("2fa_attempts", None)
+        login_user(user, remember=remember)
+        next_page = request.args.get("next")
+        if next_page:
+            next_page = next_page.replace("\\", "")
+            parsed = urlparse(next_page)
+            if not parsed.netloc and not parsed.scheme:
+                return redirect(next_page)
+        return redirect(url_for("account.dashboard"))
+
+    return render_template("auth/2fa_verify.html")
 
 
 # ---------------------------------------------------------------------------

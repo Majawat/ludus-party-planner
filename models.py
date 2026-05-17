@@ -41,6 +41,8 @@ class User(UserMixin, db.Model):
     avatar_url = db.Column(db.Text, nullable=True)
     email_verified_at = db.Column(db.DateTime, nullable=True)
     preferred_theme = db.Column(db.Text, nullable=True)
+    totp_secret = db.Column(db.Text, nullable=True)
+    totp_backup_codes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
@@ -67,6 +69,10 @@ class User(UserMixin, db.Model):
     @property
     def is_verified(self):
         return self.email_verified_at is not None
+
+    @property
+    def has_2fa(self):
+        return self.totp_secret is not None
 
 
 class EmailVerificationToken(db.Model):
