@@ -17,3 +17,6 @@ static/uploads/
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code internal working directory
+.claude/
