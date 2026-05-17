@@ -1,8 +1,12 @@
 import html
 import logging
+import time
 import xml.etree.ElementTree as ET
 
 import requests
+from flask import current_app
+
+from models import SiteSettings
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +48,7 @@ def get_bgg_game(bgg_id: int | str) -> dict | None:
 
     resp = requests.get(url, params=params, timeout=10)
     if resp.status_code == 202:
+        time.sleep(2)
         resp = requests.get(url, params=params, timeout=10)
     if resp.status_code == 202:
         return None  # BGG still processing; caller handles gracefully
@@ -125,6 +130,66 @@ def get_steam_game(app_id: int | str) -> dict | None:
         "year": None,
         "source": "steam",
     }
+
+
+def get_itad_prices(steam_app_id: int | str) -> dict | None:
+    """Fetch current price and historical low from ITAD for a Steam game.
+
+    Uses the ITAD API v2.8 (OpenAPI spec confirmed):
+      GET /games/lookup/v1?appid={id}  → ITAD UUID
+      POST /games/overview/v2          → current deal + historical low
+
+    Returns dict: {current_price, current_currency, lowest_price, lowest_currency,
+    lowest_store, itad_url}. Returns None if no key configured or any error. Never raises.
+    """
+    api_key = SiteSettings.get("itad_api_key", "").strip()
+    if not api_key:
+        return None
+    try:
+        lookup_resp = requests.get(
+            "https://api.isthereanydeal.com/games/lookup/v1",
+            params={"key": api_key, "appid": int(steam_app_id)},
+            timeout=10,
+        )
+        lookup_resp.raise_for_status()
+        lookup = lookup_resp.json()
+        if not lookup.get("found"):
+            return None
+        game_id = lookup["game"]["id"]
+
+        ov_resp = requests.post(
+            "https://api.isthereanydeal.com/games/overview/v2",
+            params={"key": api_key, "country": "US"},
+            json=[game_id],
+            timeout=10,
+        )
+        ov_resp.raise_for_status()
+        ov_data = ov_resp.json()
+
+        prices_list = ov_data.get("prices", [])
+        if not prices_list:
+            return None
+        entry = prices_list[0]
+        current = entry.get("current")
+        lowest = entry.get("lowest")
+        itad_url = entry.get("urls", {}).get(
+            "game", f"https://isthereanydeal.com/steam/app/{steam_app_id}/"
+        )
+        return {
+            "current_price": current["price"]["amount"] if current else None,
+            "current_currency": current["price"]["currency"] if current else "USD",
+            "lowest_price": lowest["price"]["amount"] if lowest else None,
+            "lowest_currency": lowest["price"]["currency"] if lowest else "USD",
+            "lowest_store": lowest["shop"]["name"] if lowest else None,
+            "itad_url": itad_url,
+        }
+    except Exception as e:
+        status = getattr(getattr(e, "response", None), "status_code", None)
+        current_app.logger.warning(
+            f"ITAD price lookup failed for steam_app_id={steam_app_id}: "
+            f"type={type(e).__name__} status={status}"
+        )
+        return None
 
 
 def search_games(query: str, source: str = "all") -> list[dict]:

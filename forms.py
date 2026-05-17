@@ -284,6 +284,7 @@ class AdminSettingsForm(FlaskForm):
     paypal_webhook_id = StringField("PayPal Webhook ID", validators=[Optional()])
     challonge_api_key = StringField("Challonge API Key", validators=[Optional()])
     challonge_username = StringField("Challonge Username", validators=[Optional()])
+    itad_api_key = StringField("ITAD API Key", validators=[Optional()])
     # NOTE: field name must also be in _BOOL_SETTINGS in routes/admin.py
     passkeys_enabled = BooleanField("Enable Passkeys")
     webauthn_rp_id = StringField("WebAuthn RP ID", validators=[Optional()])

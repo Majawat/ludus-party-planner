@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 
 import requests as req
 
-from game_lookup import search_bgg, get_bgg_game, search_steam, get_steam_game, search_games
+from game_lookup import search_bgg, get_bgg_game, get_itad_prices, search_steam, get_steam_game, search_games
 from models import GameSuggestion, Registration, TicketType, db as _db
 
 
@@ -513,6 +513,30 @@ def steam_suggestion(app, published_event, regular_user, registration):
     return s
 
 
+# ---------------------------------------------------------------------------
+# get_itad_prices unit tests
+# ---------------------------------------------------------------------------
+
+class TestGetITADPrices:
+    def test_returns_none_when_no_api_key(self):
+        with patch("game_lookup.SiteSettings.get", return_value=""):
+            result = get_itad_prices(123)
+        assert result is None
+
+    def test_returns_none_on_api_error(self, app):
+        with app.app_context():
+            with patch("game_lookup.SiteSettings.get", return_value="test_key"), \
+                 patch("game_lookup.requests.get",
+                       side_effect=req.RequestException("timeout")) as mock_req:
+                result = get_itad_prices(123)
+        assert result is None
+        mock_req.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Suggestion display tests
+# ---------------------------------------------------------------------------
+
 class TestSuggestionDisplay:
     def test_image_shown_when_set(self, client, published_event, rich_suggestion):
         resp = client.get(f"/events/{published_event.slug}")
@@ -540,3 +564,13 @@ class TestSuggestionDisplay:
         resp = client.get(f"/events/{published_event.slug}")
         assert resp.status_code == 200
         assert b"Classic trading game" in resp.data
+
+    def test_itad_link_shown_for_steam_suggestions(self, client, published_event, steam_suggestion):
+        resp = client.get(f"/events/{published_event.slug}")
+        assert resp.status_code == 200
+        assert b"isthereanydeal.com/steam/app/289070" in resp.data
+
+    def test_itad_link_not_shown_for_bgg_suggestions(self, client, published_event, rich_suggestion):
+        resp = client.get(f"/events/{published_event.slug}")
+        assert resp.status_code == 200
+        assert b"isthereanydeal.com" not in resp.data

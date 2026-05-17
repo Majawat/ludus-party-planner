@@ -3,7 +3,7 @@ from flask_login import current_user, login_required
 from sqlalchemy import select, func
 
 from forms import GameSuggestionForm
-from game_lookup import get_bgg_game, get_steam_game, search_games
+from game_lookup import get_bgg_game, get_itad_prices, get_steam_game, search_games
 from models import db, Event, EventAnnouncement, EventScheduleItem, GameSuggestion, GameSuggestionVote, PotluckItem, Registration, SiteSettings, utcnow
 
 public_bp = Blueprint("public", __name__)
@@ -115,6 +115,7 @@ def event_detail(slug):
         and event.is_upcoming
     )
     suggestion_form = GameSuggestionForm() if can_suggest else None
+    itad_enabled = bool(SiteSettings.get("itad_api_key", "").strip())
 
     return render_template(
         "public/event_detail.html",
@@ -129,6 +130,7 @@ def event_detail(slug):
         user_voted=user_voted,
         can_suggest=can_suggest,
         suggestion_form=suggestion_form,
+        itad_enabled=itad_enabled,
     )
 
 
@@ -243,6 +245,16 @@ def suggestion_vote(slug, sid):
         db.session.commit()
 
     return redirect(url_for("public.event_detail", slug=slug))
+
+
+@public_bp.route("/games/itad/<int:steam_app_id>")
+def itad_prices(steam_app_id):
+    if not request.headers.get("HX-Request"):
+        abort(400)
+    prices = get_itad_prices(steam_app_id)
+    return render_template(
+        "public/_itad_prices.html", prices=prices, steam_app_id=steam_app_id
+    )
 
 
 @public_bp.route("/games/search")

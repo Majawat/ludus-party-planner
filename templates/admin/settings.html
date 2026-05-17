@@ -286,6 +286,24 @@
       </div>
     </div>
 
+    {# --- IsThereAnyDeal --- #}
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-4">IsThereAnyDeal</h2>
+        <p class="text-sm text-base-content/70 mb-4">
+          Optional. When configured, Steam game suggestions show current price and
+          historical low pulled from the ITAD API. Without a key, suggestions still
+          show a "Check Prices on ITAD" link.
+          Get a key at <a href="https://isthereanydeal.com/apps/my/" class="link" target="_blank">isthereanydeal.com/apps/my/</a>.
+        </p>
+        <div class="form-control">
+          {{ form.itad_api_key.label(class="label label-text font-semibold") }}
+          {{ form.itad_api_key(class="input input-bordered w-full", type="password", placeholder="Optional") }}
+          <label class="label"><span class="label-text-alt">Leave blank to disable price fetching.</span></label>
+        </div>
+      </div>
+    </div>
+
     {# --- Passkeys --- #}
     <div class="card bg-base-200 shadow mb-6">
       <div class="card-body">

@@ -194,6 +194,14 @@
                         <a href="https://store.steampowered.com/app/{{ suggestion.steam_app_id }}"
                            target="_blank" rel="noopener"
                            class="text-xs text-info hover:underline">Steam ↗</a>
+                        <a href="https://isthereanydeal.com/steam/app/{{ suggestion.steam_app_id }}/"
+                           target="_blank" rel="noopener"
+                           class="text-xs text-warning hover:underline">ITAD ↗</a>
+                        {% if itad_enabled %}
+                          <span hx-get="{{ url_for('public.itad_prices', steam_app_id=suggestion.steam_app_id) }}"
+                                hx-trigger="load"
+                                hx-swap="outerHTML"></span>
+                        {% endif %}
                       {% endif %}
                     </div>
                     {% if suggestion.game_description %}
