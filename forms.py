@@ -45,6 +45,7 @@ _DARK_THEME_CHOICES = [
     ("dim", "Dim"),
 ]
 
+# NOTE: must stay in sync with _ALL_THEMES in models.py — see _DARK_THEME_CHOICES above.
 _LIGHT_THEME_CHOICES = [
     ("light", "Light"),
     ("cupcake", "Cupcake"),
