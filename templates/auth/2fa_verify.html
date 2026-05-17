@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Two-Factor Authentication — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+  <h1 class="text-3xl font-bold mb-2">Two-Factor Authentication</h1>
+  <p class="text-base-content/70 mb-6">Enter the 6-digit code from your authenticator app, or use a backup code.</p>
+
+  <form method="POST" action="{{ url_for('auth.verify_2fa') }}" class="space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-control">
+      <label class="label cursor-pointer justify-start gap-3 mb-2">
+        <input type="checkbox" name="use_backup" value="1" class="checkbox checkbox-sm"
+               id="use-backup-toggle"
+               {% if request.form.get('use_backup') == '1' %}checked{% endif %}>
+        <span class="label-text">Use a backup code instead</span>
+      </label>
+      <input
+        id="code-input"
+        type="text"
+        name="code"
+        class="input input-bordered w-full"
+        inputmode="numeric"
+        maxlength="6"
+        autocomplete="one-time-code"
+        placeholder="123456"
+        autofocus
+        required
+      >
+    </div>
+    <button type="submit" class="btn btn-primary w-full">Verify</button>
+  </form>
+
+  <p class="mt-4 text-center text-sm">
+    <a href="{{ url_for('auth.login') }}" class="link">Back to login</a>
+  </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var toggle = document.getElementById('use-backup-toggle');
+    var input = document.getElementById('code-input');
+    function updateInput() {
+      if (toggle.checked) {
+        input.removeAttribute('maxlength');
+        input.setAttribute('inputmode', 'text');
+        input.placeholder = 'XXXXXXXX';
+      } else {
+        input.setAttribute('maxlength', '6');
+        input.setAttribute('inputmode', 'numeric');
+        input.placeholder = '123456';
+      }
+    }
+    toggle.addEventListener('change', updateInput);
+    updateInput();
+  })();
+</script>
+{% endblock %}

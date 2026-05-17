@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Set Up Two-Factor Authentication — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+  <h1 class="text-3xl font-bold mb-2">Set Up Two-Factor Authentication</h1>
+  <p class="text-base-content/70 mb-6">
+    Scan the QR code below with your authenticator app (Google Authenticator, Authy, etc.),
+    then enter the 6-digit code to confirm.
+  </p>
+
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body items-center text-center">
+      <img src="{{ qr_data_uri }}" alt="QR code for authenticator app" class="mb-4" style="width:200px;height:200px;">
+      <p class="text-sm text-base-content/70 mb-1">Can't scan? Enter this code manually:</p>
+      <code class="block bg-base-300 rounded px-3 py-2 text-sm font-mono tracking-widest select-all">{{ secret }}</code>
+    </div>
+  </div>
+
+  <form method="POST" action="{{ url_for('account.security_verify_setup') }}" class="space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-control">
+      <label class="label"><span class="label-text">Enter the 6-digit code from your app</span></label>
+      <input
+        type="text"
+        name="code"
+        class="input input-bordered w-full"
+        inputmode="numeric"
+        maxlength="6"
+        autocomplete="one-time-code"
+        placeholder="123456"
+        autofocus
+        required
+      >
+    </div>
+    <button type="submit" class="btn btn-primary w-full">Verify and Enable</button>
+  </form>
+
+  <p class="mt-4 text-center text-sm">
+    <a href="{{ url_for('account.security') }}" class="link">Cancel</a>
+  </p>
+</div>
+{% endblock %}

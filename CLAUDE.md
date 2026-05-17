@@ -121,12 +121,13 @@ ludus/
 │   │   ├── reset_password.html
 │   │   ├── oauth_confirm_link.html
 │   │   ├── steam_complete_registration.html
-│   │   └── 2fa_verify.html            # 2FA challenge on login [planned-v1.4]
+│   │   └── 2fa_verify.html            # 2FA challenge on login
 │   ├── account/
 │   │   ├── dashboard.html
 │   │   ├── profile.html
-│   │   ├── security.html              # 2FA settings page [planned-v1.4]
-│   │   ├── security_setup.html        # 2FA QR code + verify [planned-v1.4]
+│   │   ├── security.html              # 2FA management page
+│   │   ├── security_setup.html        # 2FA QR code + verify
+│   │   ├── backup_codes_display.html  # Show backup codes once
 │   │   ├── register_event.html
 │   │   ├── my_registration.html
 │   │   ├── seats.html
@@ -197,7 +198,8 @@ ludus/
 │   ├── test_v12.py         # Game suggestions + voting, visual seat map/claim/release
 │   ├── test_v13.py         # Challonge tournament CRUD, participants, matches, reporting
 │   ├── test_v14.py         # v1.3 remaining: activity logging, location link, UI tests
-│   └── test_passkeys.py    # WebAuthn passkey registration, login, removal
+│   ├── test_passkeys.py    # WebAuthn passkey registration, login, removal
+│   └── test_2fa.py         # TOTP 2FA: login flow, setup, disable, backup codes
 │
 ├── .env                    # Secrets — gitignored
 ├── .env.example            # Template committed to repo
@@ -288,8 +290,8 @@ newsletter_opt_in   BOOLEAN DEFAULT FALSE NOT NULL
 avatar_url          TEXT NULLABLE
 email_verified_at   DATETIME NULLABLE        -- NULL = unverified
 preferred_theme     TEXT NULLABLE            -- [planned-v1.4] user-selected theme; NULL = use site default
-totp_secret         TEXT NULLABLE            -- [planned-v1.4] base32 secret; NULL = 2FA disabled
-totp_backup_codes   TEXT NULLABLE            -- [planned-v1.4] JSON array of hashed single-use codes
+totp_secret         TEXT NULLABLE            -- base32 secret; NULL = 2FA disabled
+totp_backup_codes   TEXT NULLABLE            -- JSON array of hashed single-use codes
 created_at          DATETIME DEFAULT NOW NOT NULL
 updated_at          DATETIME DEFAULT NOW NOT NULL
 ```
@@ -755,7 +757,7 @@ POST       /auth/<provider>/confirm-link        Confirm linking OAuth to existin
 GET        /auth/steam/login                    Steam OpenID redirect
 GET        /auth/steam/callback                 Steam OpenID callback
 GET  POST  /auth/steam/complete-registration    New user via Steam (collect email/password)
-GET  POST  /auth/2fa/verify                     2FA challenge during login [planned-v1.4]
+GET  POST  /auth/2fa/verify                     2FA challenge during login
 ```
 
 ### Account blueprint (routes/account.py)
@@ -784,11 +786,12 @@ POST       /account/stripe/webhook                   Stripe webhook (CSRF exempt
 POST       /account/paypal/webhook                   PayPal webhook (CSRF exempt)
 POST       /events/<slug>/tournaments/<tid>/signup   Sign up for tournament (login required)
 POST       /events/<slug>/tournaments/<tid>/withdraw Withdraw from tournament (login required)
-GET  POST  /account/security                        2FA settings page (login required) [planned-v1.4]
-GET        /account/security/setup                  2FA setup — show QR code (login required) [planned-v1.4]
-POST       /account/security/verify                 Verify TOTP to complete 2FA setup (login required) [planned-v1.4]
-POST       /account/security/disable                Disable 2FA, requires password (login required) [planned-v1.4]
-POST       /account/security/backup-codes           Regenerate backup codes (login required) [planned-v1.4]
+GET        /account/security                        2FA management page (login required)
+GET        /account/security/setup                  Show QR code for 2FA setup (login required)
+POST       /account/security/verify-setup           Verify TOTP code, save secret to DB (login required)
+GET        /account/security/backup-codes-display   Show backup codes once (login required)
+POST       /account/security/disable                Disable 2FA, requires password (login required)
+POST       /account/security/regenerate-backup-codes  Regenerate backup codes, requires password (login required)
 ```
 
 ### Admin blueprint (routes/admin.py — all routes require is_admin=True)
@@ -937,6 +940,17 @@ GET        /admin/logs              Activity log — paginated 50/page, newest f
 
 Still planned for v1.3 (not yet built):
 - Location map embed — `location_map_embed_url` field on events, iframe on event detail
+
+**v1.4b Complete**
+- Optional TOTP two-factor authentication — `pyotp` + `qrcode[pil]` dependencies;
+  `totp_secret` and `totp_backup_codes` columns on users; migration applied
+- Setup flow: QR code shown as data URI (no disk writes), secret stored in session
+  until verified, 8 backup codes generated on enable
+- Login intercept: password-based and passkey logins redirect to `/auth/2fa/verify`
+  when user has 2FA enabled; 5-attempt lockout clears session
+- Backup codes: single-use, hashed with Werkzeug, count shown on security page
+  with warning when 0 or 1 remaining; regeneration requires password confirmation
+- Disable requires password confirmation; all 20 tests in `tests/test_2fa.py` pass
 
 ### Deferred (Not Built)
 
@@ -1345,7 +1359,7 @@ flask db upgrade             # Apply pending migrations
 - Test database is always in-memory SQLite — never touches `data/ludus.db`
 
 ### Test Count
-**402 tests** across 14 test files. Run `pytest --collect-only -q | tail -1` for the current count.
+**431 tests** across 15 test files. Run `pytest --collect-only -q | tail -1` for the current count.
 
 ### Folder Structure
 ```
@@ -1367,7 +1381,8 @@ tests/
 ├── test_v12.py           # 25 tests — game suggestions + voting, visual seat map
 ├── test_v13.py           # 35 tests — Challonge tournament CRUD, participants, matches
 ├── test_v14.py           # 15 tests — activity logging, location link, logout POST guard
-└── test_passkeys.py      # 21 tests — WebAuthn registration, login, removal, malformed JSON
+├── test_passkeys.py      # 21 tests — WebAuthn registration, login, removal, malformed JSON
+└── test_2fa.py           # 20 tests — TOTP 2FA login flow, setup, disable, backup codes
 ```
 
 ### conftest.py Fixtures

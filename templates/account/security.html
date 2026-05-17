@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Security Settings — {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <h1 class="text-3xl font-bold mb-8">Security Settings</h1>
+
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title text-lg mb-2">Two-Factor Authentication</h2>
+
+      {% if current_user.has_2fa %}
+        <div class="flex items-center gap-2 mb-4">
+          <span class="badge badge-success">Enabled</span>
+          <span class="text-sm text-base-content/70">Your account is protected with TOTP 2FA.</span>
+        </div>
+
+        <p class="text-sm mb-1">
+          Backup codes remaining:
+          <strong>{{ backup_code_count }}</strong>
+        </p>
+        {% if backup_code_count == 0 %}
+          <div class="alert alert-error text-sm mb-4">
+            <span>You have no backup codes left. Regenerate them now in case you lose access to your authenticator app.</span>
+          </div>
+        {% elif backup_code_count == 1 %}
+          <div class="alert alert-warning text-sm mb-4">
+            <span>Only 1 backup code remaining. Consider regenerating your backup codes soon.</span>
+          </div>
+        {% endif %}
+
+        <div class="divider"></div>
+
+        <h3 class="font-semibold mb-2">Regenerate Backup Codes</h3>
+        <p class="text-sm text-base-content/70 mb-3">This will invalidate all existing backup codes and generate 8 new ones.</p>
+        <form method="POST" action="{{ url_for('account.security_regenerate_backup_codes') }}" class="flex gap-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="password" name="password" class="input input-bordered flex-1" placeholder="Confirm your password" required>
+          <button type="submit" class="btn btn-outline btn-sm">Regenerate</button>
+        </form>
+
+        <div class="divider"></div>
+
+        <h3 class="font-semibold mb-2">Disable Two-Factor Authentication</h3>
+        <p class="text-sm text-base-content/70 mb-3">Removing 2FA will make your account less secure.</p>
+        <form method="POST" action="{{ url_for('account.security_disable') }}" class="flex gap-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="password" name="password" class="input input-bordered flex-1" placeholder="Confirm your password" required>
+          <button type="submit" class="btn btn-error btn-sm">Disable 2FA</button>
+        </form>
+
+      {% else %}
+        <div class="flex items-center gap-2 mb-4">
+          <span class="badge badge-neutral">Not enabled</span>
+          <span class="text-sm text-base-content/70">Add an extra layer of security to your account.</span>
+        </div>
+        <a href="{{ url_for('account.security_setup') }}" class="btn btn-primary btn-sm">Enable 2FA</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <a href="{{ url_for('account.profile') }}" class="link text-sm">← Back to account settings</a>
+  </div>
+</div>
+{% endblock %}

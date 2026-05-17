@@ -1,7 +1,8 @@
+import json
 from uuid import uuid4
 
 import requests as http_requests
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
@@ -986,3 +987,127 @@ def tournament_withdraw(slug, tid):
     db.session.commit()
     flash("You've withdrawn from the tournament.", "success")
     return redirect(url_for("account.my_registration", slug=slug))
+
+
+# ---------------------------------------------------------------------------
+# 2FA / TOTP security routes
+# ---------------------------------------------------------------------------
+
+def _get_totp_helpers():
+    """Import TOTP helpers from auth module (avoids circular import at module level)."""
+    from routes.auth import (
+        _generate_totp_secret, _get_totp_uri, _verify_totp_code,
+        _generate_backup_codes, _verify_backup_code, _qr_code_data_uri,
+    )
+    return (
+        _generate_totp_secret, _get_totp_uri, _verify_totp_code,
+        _generate_backup_codes, _verify_backup_code, _qr_code_data_uri,
+    )
+
+
+@account_bp.route("/account/security")
+@login_required
+def security():
+    backup_code_count = 0
+    if current_user.totp_backup_codes:
+        try:
+            backup_code_count = len(json.loads(current_user.totp_backup_codes))
+        except Exception as e:
+            current_app.logger.warning(f"Failed to parse totp_backup_codes for user {current_user.id}: {e}")
+            backup_code_count = 0
+    return render_template(
+        "account/security.html",
+        backup_code_count=backup_code_count,
+    )
+
+
+@account_bp.route("/account/security/setup")
+@login_required
+def security_setup():
+    if current_user.has_2fa:
+        return redirect(url_for("account.security"))
+    (
+        _generate_totp_secret, _get_totp_uri, _verify_totp_code,
+        _generate_backup_codes, _verify_backup_code, _qr_code_data_uri,
+    ) = _get_totp_helpers()
+    secret = session.get("totp_setup_secret") or _generate_totp_secret()
+    session["totp_setup_secret"] = secret
+    uri = _get_totp_uri(secret, current_user.email)
+    qr_data_uri = _qr_code_data_uri(uri)
+    return render_template(
+        "account/security_setup.html",
+        qr_data_uri=qr_data_uri,
+        secret=secret,
+    )
+
+
+@account_bp.route("/account/security/verify-setup", methods=["POST"])
+@login_required
+def security_verify_setup():
+    secret = session.get("totp_setup_secret")
+    if not secret:
+        return redirect(url_for("account.security_setup"))
+    (
+        _generate_totp_secret, _get_totp_uri, _verify_totp_code,
+        _generate_backup_codes, _verify_backup_code, _qr_code_data_uri,
+    ) = _get_totp_helpers()
+    code = request.form.get("code", "").strip()
+    if not _verify_totp_code(secret, code):
+        flash("Invalid code. Please try the code from your app.", "error")
+        uri = _get_totp_uri(secret, current_user.email)
+        qr_data_uri = _qr_code_data_uri(uri)
+        return render_template("account/security_setup.html",
+                               qr_data_uri=qr_data_uri, secret=secret)
+    raw_codes, hashed_codes = _generate_backup_codes()
+    current_user.totp_secret = secret
+    current_user.totp_backup_codes = json.dumps(hashed_codes)
+    db.session.commit()
+    session.pop("totp_setup_secret", None)
+    session["totp_backup_codes_display"] = raw_codes
+    flash("Two-factor authentication enabled!", "success")
+    return redirect(url_for("account.security_backup_codes_display"))
+
+
+@account_bp.route("/account/security/backup-codes-display")
+@login_required
+def security_backup_codes_display():
+    raw_codes = session.pop("totp_backup_codes_display", None)
+    if raw_codes is None:
+        return redirect(url_for("account.security"))
+    return render_template("account/backup_codes_display.html", codes=raw_codes)
+
+
+@account_bp.route("/account/security/disable", methods=["POST"])
+@login_required
+def security_disable():
+    password = request.form.get("password", "")
+    if not current_user.check_password(password):
+        flash("Incorrect password.", "error")
+        return redirect(url_for("account.security"))
+    current_user.totp_secret = None
+    current_user.totp_backup_codes = None
+    db.session.commit()
+    flash("Two-factor authentication disabled.", "success")
+    return redirect(url_for("account.security"))
+
+
+@account_bp.route("/account/security/regenerate-backup-codes", methods=["POST"])
+@login_required
+def security_regenerate_backup_codes():
+    if not current_user.has_2fa:
+        flash("Two-factor authentication is not enabled.", "error")
+        return redirect(url_for("account.security"))
+    password = request.form.get("password", "")
+    if not current_user.check_password(password):
+        flash("Incorrect password.", "error")
+        return redirect(url_for("account.security"))
+    (
+        _generate_totp_secret, _get_totp_uri, _verify_totp_code,
+        _generate_backup_codes, _verify_backup_code, _qr_code_data_uri,
+    ) = _get_totp_helpers()
+    raw_codes, hashed_codes = _generate_backup_codes()
+    current_user.totp_backup_codes = json.dumps(hashed_codes)
+    db.session.commit()
+    session["totp_backup_codes_display"] = raw_codes
+    flash("New backup codes generated. Save them now.", "success")
+    return redirect(url_for("account.security_backup_codes_display"))
