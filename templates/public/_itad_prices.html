@@ -1,0 +1,10 @@
+{% if prices %}
+  <span class="text-xs text-base-content/60">
+    {% if prices.current_price is not none %}
+      {{ prices.current_currency }} {{ "%.2f"|format(prices.current_price) }}
+    {% endif %}
+    {% if prices.lowest_price is not none %}
+      · Low: {{ prices.lowest_currency }} {{ "%.2f"|format(prices.lowest_price) }}{% if prices.lowest_store %} on {{ prices.lowest_store }}{% endif %}
+    {% endif %}
+  </span>
+{% endif %}
