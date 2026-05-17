@@ -244,9 +244,21 @@ def test_dashboard_shows_profile_card(client, regular_user):
 # Test 14: POST /logout redirects and ends the session
 # ---------------------------------------------------------------------------
 
-def test_logout_via_post_redirects(client, regular_user):
+def test_logout_via_post_logs_out_user(client, regular_user):
     _login(client, "user@example.com", "userpass123")
     resp = client.post("/logout", follow_redirects=False)
     assert resp.status_code == 302
     resp2 = client.get("/dashboard", follow_redirects=False)
     assert resp2.status_code == 302
+
+
+# ---------------------------------------------------------------------------
+# Test 15: GET /logout is rejected with 405
+# ---------------------------------------------------------------------------
+
+def test_logout_via_get_is_rejected(client, regular_user):
+    # GET /logout must return 405 — logout is a state-changing action
+    # that must be protected from CSRF via image tags or link-based redirects.
+    _login(client, "user@example.com", "userpass123")
+    resp = client.get("/logout")
+    assert resp.status_code == 405

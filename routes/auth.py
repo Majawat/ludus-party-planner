@@ -145,7 +145,7 @@ def login():
                            steam_enabled=steam_enabled, passkeys_enabled=passkeys_enabled)
 
 
-@auth_bp.route("/logout", methods=["GET", "POST"])
+@auth_bp.route("/logout", methods=["POST"])
 @login_required
 def logout():
     logout_user()

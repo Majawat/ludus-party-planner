@@ -69,7 +69,7 @@ def test_sold_out_ticket_rejected(client, regular_user, published_event, app):
         "/events/test-lan-party/register",
         data={"ticket_type_id": limited_ticket.id},
     )
-    client.get("/logout")
+    client.post("/logout")
 
     # Create a second verified user and try to register
     second_user = User(name="Second", email="second@example.com", email_verified_at=utcnow())
