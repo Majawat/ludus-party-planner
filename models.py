@@ -556,6 +556,8 @@ def unique_slug(base_slug: str, exclude_id: int = None) -> str:
         n += 1
 
 
+# NOTE: _ALL_THEMES must stay in sync with _DARK_THEME_CHOICES and _LIGHT_THEME_CHOICES in forms.py.
+# When adding or removing DaisyUI themes, update both files together.
 _ALL_THEMES = [
     "dark", "dracula", "night", "synthwave", "halloween",
     "forest", "black", "luxury", "dim", "light", "cupcake",

@@ -4,7 +4,7 @@
   {% if not request.path.startswith('/admin') %}
   <script>
   (function() {
-    var userPref = {{ (current_user.preferred_theme if current_user.is_authenticated and current_user.preferred_theme else '') | tojson }};
+    var userPref = {{ (current_user.preferred_theme if current_user.is_authenticated and current_user.preferred_theme and current_user.preferred_theme in allowed_themes else '') | tojson }};
     var darkDefault = {{ default_dark_theme | tojson }};
     var lightDefault = {{ default_light_theme | tojson }};
     var theme;

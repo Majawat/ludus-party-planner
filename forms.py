@@ -31,6 +31,8 @@ _THEME_CHOICES = [
     ("nord", "Nord"),
 ]
 
+# NOTE: _DARK_THEME_CHOICES and _LIGHT_THEME_CHOICES must stay in sync with _ALL_THEMES in models.py.
+# When adding or removing DaisyUI themes, update both files together.
 _DARK_THEME_CHOICES = [
     ("dark", "Dark"),
     ("dracula", "Dracula"),
