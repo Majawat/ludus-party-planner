@@ -8,6 +8,7 @@
   <p class="text-base-content/70 mb-6">Enter the 6-digit code from your authenticator app, or use a backup code.</p>
 
   <form method="POST" action="{{ url_for('auth.verify_2fa') }}" class="space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-control">
       <label class="label cursor-pointer justify-start gap-3 mb-2">
         <input type="checkbox" name="use_backup" value="1" class="checkbox checkbox-sm"
