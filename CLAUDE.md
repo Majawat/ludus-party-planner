@@ -1069,11 +1069,20 @@ Stripe keys, PayPal keys, Challonge keys → site_settings table
 **Admin panel always uses data-theme="dim"**
 Regardless of any theme settings. Hard-coded in base.html for /admin/* routes.
 
-**Theme selection: single site default key**
-A single `ui_theme` site_settings key controls the active theme. Admin pages
-always render with `data-theme="dim"`. The `base.html` template reads `ui_theme`
-from the context processor. v1.4 will add `default_dark_theme`, `default_light_theme`,
-`allowed_themes`, and per-user `preferred_theme` preference.
+**Theme resolution (v1.4a)**
+Theme is resolved in priority order: per-user `preferred_theme` → OS
+`prefers-color-scheme` media query (dark → `default_dark_theme` setting, light →
+`default_light_theme` setting) → `ui_theme` as a no-JS fallback. The logic lives
+in a small inline `<script>` in `base.html`'s `<head>`, injected only on non-admin
+pages, which calls `document.documentElement.setAttribute('data-theme', ...)` before
+CSS loads to prevent flash. Admin pages always render with `data-theme="dim"` via the
+static `<html>` attribute — the script does not run on `/admin/*` routes.
+
+The `inject_site_settings` context processor exposes `ui_theme`, `default_dark_theme`,
+and `default_light_theme` to all templates. The `allowed_themes` site setting (newline-
+separated list) restricts which themes users may choose; empty means all 16 curated
+themes are allowed. `get_allowed_themes()` in `models.py` enforces this filter and is
+the single authoritative source for that list.
 
 **What to bring lives in description**
 No separate `what_to_bring` field. Operators include it in the event description.

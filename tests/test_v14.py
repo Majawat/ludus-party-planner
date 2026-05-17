@@ -5,7 +5,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import activity
-from models import ActivityLog, Event, Registration, TicketType, db as _db, utcnow
+from models import ActivityLog, Event, Registration, SiteSettings, TicketType, User, db as _db, get_allowed_themes, utcnow
 
 
 def _login(client, email, password):
@@ -262,3 +262,126 @@ def test_logout_via_get_is_rejected(client, regular_user):
     _login(client, "user@example.com", "userpass123")
     resp = client.get("/logout")
     assert resp.status_code == 405
+
+
+# ---------------------------------------------------------------------------
+# Tests 16-24: v1.4a — User theme preference + get_allowed_themes
+# ---------------------------------------------------------------------------
+
+def test_preferred_theme_saves_to_user(client, app, regular_user):
+    _login(client, "user@example.com", "userpass123")
+    resp = client.post(
+        "/account/theme",
+        data={"theme": "dracula"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    with app.app_context():
+        user = _db.session.get(User, regular_user.id)
+        assert user.preferred_theme == "dracula"
+
+
+def test_preferred_theme_rejects_invalid_theme(client, app, regular_user):
+    with app.app_context():
+        user = _db.session.get(User, regular_user.id)
+        user.preferred_theme = None
+        _db.session.commit()
+
+    _login(client, "user@example.com", "userpass123")
+    resp = client.post(
+        "/account/theme",
+        data={"theme": "faketheme"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Invalid theme" in resp.data
+    with app.app_context():
+        user = _db.session.get(User, regular_user.id)
+        assert user.preferred_theme is None
+
+
+def test_preferred_theme_rejects_theme_not_in_allowed_list(client, app, regular_user):
+    with app.app_context():
+        SiteSettings.set("allowed_themes", "dark\ndracula")
+        user = _db.session.get(User, regular_user.id)
+        user.preferred_theme = None
+        _db.session.commit()
+
+    _login(client, "user@example.com", "userpass123")
+    resp = client.post(
+        "/account/theme",
+        data={"theme": "light"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Invalid theme" in resp.data
+    with app.app_context():
+        user = _db.session.get(User, regular_user.id)
+        assert user.preferred_theme is None
+        SiteSettings.set("allowed_themes", "")
+
+
+def test_preferred_theme_clears_to_none(client, app, regular_user):
+    _login(client, "user@example.com", "userpass123")
+    # First set a theme via the route
+    client.post("/account/theme", data={"theme": "dark"}, follow_redirects=False)
+    # Then clear it
+    resp = client.post(
+        "/account/theme",
+        data={"theme": "default"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    with app.app_context():
+        user = _db.session.get(User, regular_user.id)
+        assert user.preferred_theme is None
+
+
+def test_get_allowed_themes_returns_all_when_empty(app):
+    with app.app_context():
+        SiteSettings.set("allowed_themes", "")
+        result = get_allowed_themes()
+        assert len(result) == 16
+        assert "dark" in result
+        assert "nord" in result
+
+
+def test_get_allowed_themes_filters_to_configured(app):
+    with app.app_context():
+        SiteSettings.set("allowed_themes", "dark\ncupcake")
+        result = get_allowed_themes()
+        assert result == ["dark", "cupcake"]
+        SiteSettings.set("allowed_themes", "")
+
+
+def test_get_allowed_themes_ignores_invalid_names(app):
+    with app.app_context():
+        SiteSettings.set("allowed_themes", "dark\nfaketheme\ncupcake")
+        result = get_allowed_themes()
+        assert result == ["dark", "cupcake"]
+        SiteSettings.set("allowed_themes", "")
+
+
+def test_settings_save_dark_and_light_defaults(client, app, admin_user):
+    _login(client, "admin@example.com", "adminpass123")
+    settings = {
+        "site_name": "Ludus",
+        "ui_theme": "dark",  # SelectField requires a valid choice
+        "default_dark_theme": "dracula",
+        "default_light_theme": "nord",
+    }
+    resp = client.post("/admin/settings", data=settings, follow_redirects=False)
+    assert resp.status_code == 302
+    with app.app_context():
+        assert SiteSettings.get("default_dark_theme") == "dracula"
+        assert SiteSettings.get("default_light_theme") == "nord"
+
+
+def test_theme_route_requires_login(client, app):
+    resp = client.post(
+        "/account/theme",
+        data={"theme": "dark"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert "/login" in resp.headers["Location"]

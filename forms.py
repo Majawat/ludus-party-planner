@@ -31,6 +31,31 @@ _THEME_CHOICES = [
     ("nord", "Nord"),
 ]
 
+# NOTE: _DARK_THEME_CHOICES and _LIGHT_THEME_CHOICES must stay in sync with _ALL_THEMES in models.py.
+# When adding or removing DaisyUI themes, update both files together.
+_DARK_THEME_CHOICES = [
+    ("dark", "Dark"),
+    ("dracula", "Dracula"),
+    ("night", "Night"),
+    ("synthwave", "Synthwave"),
+    ("halloween", "Halloween"),
+    ("forest", "Forest"),
+    ("black", "Black"),
+    ("luxury", "Luxury"),
+    ("dim", "Dim"),
+]
+
+# NOTE: must stay in sync with _ALL_THEMES in models.py — see _DARK_THEME_CHOICES above.
+_LIGHT_THEME_CHOICES = [
+    ("light", "Light"),
+    ("cupcake", "Cupcake"),
+    ("retro", "Retro"),
+    ("garden", "Garden"),
+    ("lofi", "Lofi"),
+    ("autumn", "Autumn"),
+    ("nord", "Nord"),
+]
+
 
 class RegistrationForm(FlaskForm):
     name = StringField("Name", validators=[DataRequired(), Length(max=120)])
@@ -234,6 +259,11 @@ class AdminSettingsForm(FlaskForm):
     # NOTE: field name must also be in _BOOL_SETTINGS in routes/admin.py
     show_upcoming_event_on_homepage = BooleanField("Show Upcoming Event on Homepage")
     ui_theme = SelectField("Site Theme", choices=_THEME_CHOICES)
+    # NOTE: These are string SelectFields/TextAreaField, not BooleanFields.
+    # Do not add to _BOOL_SETTINGS in routes/admin.py.
+    default_dark_theme = SelectField("Default Dark Theme", choices=_DARK_THEME_CHOICES, validate_choice=False)
+    default_light_theme = SelectField("Default Light Theme", choices=_LIGHT_THEME_CHOICES, validate_choice=False)
+    allowed_themes = TextAreaField("Allowed User Themes", validators=[Optional()])
     discord_oauth_client_id = StringField("Discord Client ID", validators=[Optional()])
     discord_oauth_client_secret = StringField("Discord Client Secret", validators=[Optional()])
     google_oauth_client_id = StringField("Google Client ID", validators=[Optional()])

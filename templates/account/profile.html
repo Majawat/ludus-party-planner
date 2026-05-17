@@ -79,6 +79,30 @@
   </div>
   {% endif %}
 
+  {# --- Display Theme --- #}
+  <div class="card bg-base-200 shadow mb-6">
+    <div class="card-body">
+      <h2 class="card-title text-lg mb-4">Display Theme</h2>
+      <form method="POST" action="{{ url_for('account.set_theme') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-control mb-4">
+          <label class="label"><span class="label-text font-semibold">Theme</span></label>
+          <select name="theme" class="select select-bordered w-full max-w-xs">
+            <option value="default" {% if not current_user.preferred_theme %}selected{% endif %}>
+              Use site default (follows OS dark/light mode)
+            </option>
+            {% for theme in allowed_themes %}
+            <option value="{{ theme }}" {% if current_user.preferred_theme == theme %}selected{% endif %}>
+              {{ theme | capitalize }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">Save Theme</button>
+      </form>
+    </div>
+  </div>
+
   {# --- Connected Accounts --- #}
   <div class="card bg-base-200 shadow mb-6">
     <div class="card-body">

@@ -55,9 +55,37 @@
           Changes apply to the public-facing site immediately. Admin pages always use the <strong>dim</strong> theme.
         </p>
 
-        <div class="form-control">
+        <div class="form-control mb-4">
           {{ form.ui_theme.label(class="label label-text font-semibold") }}
           {{ form.ui_theme(class="select select-bordered w-full max-w-xs") }}
+          <label class="label"><span class="label-text-alt">Legacy fallback theme (used when JS is disabled).</span></label>
+        </div>
+
+        <div class="divider text-sm">User Theme Preferences</div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div class="form-control">
+            {{ form.default_dark_theme.label(class="label label-text font-semibold") }}
+            {{ form.default_dark_theme(class="select select-bordered w-full") }}
+            <label class="label"><span class="label-text-alt">Applied when the user's OS prefers dark mode and they have no theme preference set.</span></label>
+          </div>
+          <div class="form-control">
+            {{ form.default_light_theme.label(class="label label-text font-semibold") }}
+            {{ form.default_light_theme(class="select select-bordered w-full") }}
+            <label class="label"><span class="label-text-alt">Applied when the user's OS prefers light mode and they have no theme preference set.</span></label>
+          </div>
+        </div>
+
+        <div class="form-control">
+          {{ form.allowed_themes.label(class="label label-text font-semibold") }}
+          {{ form.allowed_themes(class="textarea textarea-bordered w-full", rows=4) }}
+          <label class="label">
+            <span class="label-text-alt">
+              Leave blank to allow all themes. One theme name per line.
+              Valid names: dark dracula night synthwave halloween forest black luxury dim
+              light cupcake retro garden lofi autumn nord
+            </span>
+          </label>
         </div>
       </div>
     </div>

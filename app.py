@@ -7,7 +7,7 @@ from flask_mail import Mail
 from dotenv import load_dotenv
 
 from extensions import csrf, oauth
-from models import db, User, SiteSettings, Event, TicketType
+from models import db, User, SiteSettings, Event, TicketType, get_allowed_themes
 
 migrate = Migrate()
 login_manager = LoginManager()
@@ -68,12 +68,27 @@ def create_app(test_config=None):
             theme = SiteSettings.get("ui_theme", "dark")
             site_name = SiteSettings.get("site_name", "Ludus Party Planner")
             site_tagline = SiteSettings.get("site_tagline", "Board Games & LAN Parties")
+            # Use `or` so an empty stored string falls back to the safe default,
+            # not just a missing key (SiteSettings.get default only fires on None).
+            default_dark_theme = SiteSettings.get("default_dark_theme") or "dark"
+            default_light_theme = SiteSettings.get("default_light_theme") or "light"
+            allowed_themes = get_allowed_themes()
         except Exception as e:
             app.logger.warning(f"inject_site_settings failed: {e}")
             theme = "dark"
             site_name = "Ludus Party Planner"
             site_tagline = "Board Games & LAN Parties"
-        return {"ui_theme": theme, "site_name": site_name, "site_tagline": site_tagline}
+            default_dark_theme = "dark"
+            default_light_theme = "light"
+            allowed_themes = []
+        return {
+            "ui_theme": theme,
+            "site_name": site_name,
+            "site_tagline": site_tagline,
+            "default_dark_theme": default_dark_theme,
+            "default_light_theme": default_light_theme,
+            "allowed_themes": allowed_themes,
+        }
 
     @app.before_request
     def check_setup():
@@ -126,6 +141,9 @@ def create_app(test_config=None):
         "show_upcoming_event_on_homepage": "true",
         "venmo_handle": "",
         "ui_theme": "dark",
+        "default_dark_theme": "dark",
+        "default_light_theme": "light",
+        "allowed_themes": "",
         "discord_oauth_client_id": "",
         "discord_oauth_client_secret": "",
         "google_oauth_client_id": "",
