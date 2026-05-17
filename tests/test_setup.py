@@ -197,7 +197,14 @@ def test_setup_step2_saves_site_settings(fresh_client, fresh_app):
 
 def test_setup_complete_sets_flag(fresh_client, fresh_app):
     _create_admin_via_step1(fresh_client)
-    fresh_client.get("/setup/complete")
+    # setup_complete is now written by step2 POST, not by GET /setup/complete.
+    # Simulate the full flow: step2 POST sets the flag, then /setup/complete is visited.
+    fresh_client.post("/setup/site", data={
+        "site_name": "Test Site",
+        "site_tagline": "",
+        "contact_email": "",
+        "ui_theme": "dark",
+    })
 
     with fresh_app.app_context():
         assert SiteSettings.get("setup_complete") == "true"
@@ -235,3 +242,49 @@ def test_seed_setup_resets_flag(app):
 
     with app.app_context():
         assert SiteSettings.get("setup_complete") == "false"
+
+
+def test_setup_complete_set_in_step2_not_in_complete_view(fresh_client, fresh_app):
+    """setup_complete must be written during step2 POST, not on GET /setup/complete."""
+    # Ensure setup is NOT complete to start
+    with fresh_app.app_context():
+        SiteSettings.set("setup_complete", "false")
+
+    # First, create an admin via step1
+    fresh_client.post(
+        "/setup",
+        data={
+            "name": "Admin",
+            "email": "setuptest@example.com",
+            "password": "password123",
+            "confirm_password": "password123",
+        },
+    )
+
+    # Before step2, setup_complete is still false
+    with fresh_app.app_context():
+        assert SiteSettings.get("setup_complete", "false") == "false"
+
+    # Visiting /setup/complete directly (GET) must NOT write setup_complete=true
+    with fresh_app.app_context():
+        SiteSettings.set("setup_complete", "false")
+    fresh_client.get("/setup/complete")
+    with fresh_app.app_context():
+        assert SiteSettings.get("setup_complete", "false") == "false", (
+            "GET /setup/complete must not write to the database"
+        )
+
+    # After step2 POST, setup_complete is set to true (write happens in step2)
+    fresh_client.post(
+        "/setup/site",
+        data={
+            "site_name": "Test Site",
+            "site_tagline": "",
+            "contact_email": "",
+            "ui_theme": "dark",
+        },
+    )
+    with fresh_app.app_context():
+        assert SiteSettings.get("setup_complete") == "true", (
+            "setup_complete must be 'true' after step2 POST"
+        )

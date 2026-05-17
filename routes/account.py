@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 import requests as http_requests
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select
 
@@ -102,6 +102,7 @@ def change_password():
 @login_required
 def connect_provider(provider):
     from flask import session, abort
+    # NOTE: this set mirrors _VALID_PROVIDERS in routes/auth.py — keep in sync
     if provider not in {"discord", "google"}:
         abort(404)
     settings = SiteSettings.all_as_dict()
@@ -114,6 +115,7 @@ def connect_provider(provider):
 @account_bp.route("/account/disconnect/<provider>", methods=["POST"])
 @login_required
 def disconnect_provider(provider):
+    # NOTE: this set mirrors _VALID_PROVIDERS in routes/auth.py — keep in sync
     if provider not in {"discord", "google"}:
         abort(404)
     acct = UserPlatformAccount.query.filter_by(
@@ -303,7 +305,8 @@ def register_event(slug):
                 except Exception:
                     pass
                 return redirect(checkout_url)
-            except Exception:
+            except Exception as e:
+                current_app.logger.warning(f"Stripe checkout creation failed: {e}")
                 db.session.rollback()
                 flash("Could not create Stripe checkout. Please try again or pay later.", "error")
                 return redirect(url_for("account.register_event", slug=slug))
@@ -323,7 +326,8 @@ def register_event(slug):
                 except Exception:
                     pass
                 return redirect(approve_url)
-            except Exception:
+            except Exception as e:
+                current_app.logger.warning(f"PayPal order creation failed: {e}")
                 db.session.rollback()
                 flash("Could not create PayPal order. Please try again or pay later.", "error")
                 return redirect(url_for("account.register_event", slug=slug))
@@ -484,6 +488,9 @@ def cancel_registration(slug):
 @account_bp.route("/account/stripe/success")
 @login_required
 def stripe_success():
+    # GET is required by Stripe: the return_url is a redirect from Stripe's
+    # hosted checkout. The DB write here is a fallback confirmation — the primary
+    # update path is the stripe_webhook route. Idempotent: skipped if already paid.
     session_id = request.args.get("session_id", "")
     stripe_session = retrieve_stripe_session(session_id)
     if not stripe_session:
@@ -515,6 +522,8 @@ def stripe_success():
 @account_bp.route("/account/paypal/success")
 @login_required
 def paypal_success():
+    # GET is required by PayPal: the return_url is a redirect from PayPal's
+    # hosted approval page. The DB write is idempotent — skipped if already paid.
     order_id = request.args.get("token", "")
     registration = Registration.query.filter_by(paypal_order_id=order_id).first()
     if registration is None:
@@ -901,8 +910,8 @@ def tournament_signup(slug, tid):
             )
             if isinstance(result, list) and result:
                 cp_id = result[0]["participant"]["id"]
-        except http_requests.RequestException:
-            pass  # degrade gracefully
+        except http_requests.RequestException as e:
+            current_app.logger.warning(f"Challonge signup failed for tournament {tid}: {e}")
 
     participant = TournamentParticipant(
         tournament_id=tid,
@@ -949,8 +958,8 @@ def tournament_withdraw(slug, tid):
     if participant.challonge_participant_id and tournament.challonge_url_slug:
         try:
             challonge.remove_participant(tournament.challonge_url_slug, participant.challonge_participant_id)
-        except http_requests.RequestException:
-            pass  # proceed with local deletion
+        except http_requests.RequestException as e:
+            current_app.logger.warning(f"Challonge withdraw failed for tournament {tid}: {e}")
 
     db.session.delete(participant)
     db.session.commit()

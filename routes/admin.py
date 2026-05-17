@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import requests as http_requests
-from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
 import challonge
@@ -24,6 +24,11 @@ from models import (
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
+# NOTE: must contain every BooleanField name from AdminSettingsForm in forms.py.
+# Adding a BooleanField there without adding it here causes that setting to be
+# stored as Python True/False instead of the string "true"/"false", silently
+# breaking every SiteSettings.get(...) == "true" check downstream.
+# When adding any new BooleanField to AdminSettingsForm, add its name here too.
 _BOOL_SETTINGS = {
     "registration_enabled",
     "show_upcoming_event_on_homepage",
@@ -1527,8 +1532,8 @@ def tournament_delete(id, tid):
     if tournament.challonge_url_slug:
         try:
             challonge.delete_tournament(tournament.challonge_url_slug)
-        except http_requests.RequestException:
-            pass  # Proceed with local deletion even if Challonge delete fails
+        except http_requests.RequestException as e:
+            current_app.logger.warning(f"Challonge delete failed for {tournament.challonge_url_slug}: {e}")
 
     _tid = tournament.id
     _tname = tournament.name

@@ -51,6 +51,7 @@ def step2():
         SiteSettings.set("site_tagline", form.site_tagline.data or "")
         SiteSettings.set("contact_email", form.contact_email.data or "")
         SiteSettings.set("ui_theme", form.ui_theme.data)
+        SiteSettings.set("setup_complete", "true")
         return redirect(url_for("setup.complete"))
 
     if not form.is_submitted():
@@ -63,8 +64,8 @@ def step2():
 
 @setup_bp.route("/setup/complete")
 def complete():
+    # Read-only: setup_complete is set in step2's POST handler, not here.
+    # This is a GET route and must not write to the database.
     if User.query.filter_by(is_admin=True).first() is None:
         return redirect(url_for("setup.step1"))
-
-    SiteSettings.set("setup_complete", "true")
     return render_template("setup/complete.html")

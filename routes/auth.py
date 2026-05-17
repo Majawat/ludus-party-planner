@@ -32,6 +32,8 @@ from models import (
 
 auth_bp = Blueprint("auth", __name__)
 
+# NOTE: routes/account.py has inline copies of this set in connect_provider and
+# disconnect_provider. If you add a provider here, update those literals too.
 _VALID_PROVIDERS = {"discord", "google"}
 _openid_store = MemoryStore()
 STEAM_OPENID_URL = "https://steamcommunity.com/openid"
@@ -155,6 +157,8 @@ def logout():
 
 @auth_bp.route("/verify-email/<token>")
 def verify_email(token):
+    # GET is legitimate here: email verification links must be clickable from email
+    # clients. The token is single-use (deleted after use) and expires in 48 hours.
     token_hash = _hash_token(token)
     record = EmailVerificationToken.query.filter_by(token_hash=token_hash).first()
     if not record or record.expires_at < utcnow():
@@ -233,6 +237,9 @@ def oauth_login(provider):
 
 @auth_bp.route("/auth/<provider>/callback")
 def oauth_callback(provider):
+    # GET is required by the OAuth 2.0 protocol: the provider redirects back to
+    # this URL with an authorization code. The DB writes here are the result of
+    # a user-initiated OAuth flow, not an arbitrary GET request.
     if provider not in _VALID_PROVIDERS:
         abort(404)
     client = get_oauth_client(provider)
@@ -386,7 +393,8 @@ def _fetch_steam_persona(steam64_id):
             timeout=3,
         )
         return r.json()["response"]["players"][0]["personaname"]
-    except Exception:
+    except Exception as e:
+        current_app.logger.warning(f"steam persona fetch failed for {steam64_id}: {e}")
         return "Steam User"
 
 
@@ -399,7 +407,8 @@ def steam_login():
     consumer = Consumer(session, _openid_store)
     try:
         auth_request = consumer.begin(STEAM_OPENID_URL)
-    except Exception:
+    except Exception as e:
+        current_app.logger.warning(f"steam_login OpenID begin failed: {e}")
         flash("Could not connect to Steam. Please try again.", "error")
         return redirect(url_for("auth.login"))
     callback_url = url_for("auth.steam_callback", _external=True)
@@ -409,6 +418,8 @@ def steam_login():
 
 @auth_bp.route("/auth/steam/callback")
 def steam_callback():
+    # GET is required by the OpenID 2.0 protocol: Steam redirects back here with
+    # the signed identity response. DB writes only occur after signature verification.
     if SiteSettings.get("steam_enabled") != "true":
         abort(404)
     consumer = Consumer(session, _openid_store)

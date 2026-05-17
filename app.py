@@ -68,7 +68,8 @@ def create_app(test_config=None):
             theme = SiteSettings.get("ui_theme", "dark")
             site_name = SiteSettings.get("site_name", "Ludus Party Planner")
             site_tagline = SiteSettings.get("site_tagline", "Board Games & LAN Parties")
-        except Exception:
+        except Exception as e:
+            app.logger.warning(f"inject_site_settings failed: {e}")
             theme = "dark"
             site_name = "Ludus Party Planner"
             site_tagline = "Board Games & LAN Parties"
@@ -89,8 +90,8 @@ def create_app(test_config=None):
             setup_complete = SiteSettings.get("setup_complete", "false") == "true"
             if not admin_exists or not setup_complete:
                 return redirect(url_for("setup.step1"))
-        except Exception:
-            pass
+        except Exception as e:
+            app.logger.warning(f"check_setup before_request failed: {e}")
 
     @app.route("/ping")
     def ping():

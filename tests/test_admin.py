@@ -92,6 +92,76 @@ def test_settings_saves_and_reads_back(client, admin_user):
     assert SiteSettings.get("site_name") == "My Event Site"
 
 
+def test_bool_settings_save_as_true_strings(client, admin_user):
+    """BooleanField values must be stored as the strings 'true'/'false', not Python bools."""
+    # Seed all required settings rows so the form can save them back
+    bool_keys = [
+        "registration_enabled", "show_upcoming_event_on_homepage",
+        "steam_enabled", "stripe_enabled", "paypal_enabled", "passkeys_enabled",
+    ]
+    string_keys = [
+        "site_name", "site_tagline", "contact_email", "logo_url", "favicon_url",
+        "venmo_handle", "discord_url", "twitch_url", "youtube_url",
+        "instagram_url", "facebook_url", "terms_of_service", "privacy_policy",
+        "ui_theme", "discord_oauth_client_id", "discord_oauth_client_secret",
+        "google_oauth_client_id", "google_oauth_client_secret", "steam_api_key",
+        "stripe_publishable_key", "stripe_secret_key", "stripe_webhook_secret",
+        "paypal_client_id", "paypal_client_secret", "paypal_webhook_id",
+        "challonge_api_key", "challonge_username", "webauthn_rp_id", "webauthn_origin",
+    ]
+    for key in bool_keys:
+        db.session.add(SiteSettings(key=key, value="false"))
+    for key in string_keys:
+        db.session.add(SiteSettings(key=key, value=""))
+    db.session.add(SiteSettings(key="paypal_mode", value="sandbox"))
+    db.session.commit()
+
+    _login(client, "admin@example.com", "adminpass123")
+
+    # POST with all four payment/feature booleans checked
+    response = client.post(
+        "/admin/settings",
+        data={
+            "site_name": "Test Site",
+            "ui_theme": "dark",
+            "paypal_mode": "sandbox",
+            "stripe_enabled": "y",
+            "paypal_enabled": "y",
+            "passkeys_enabled": "y",
+            "steam_enabled": "y",
+            "registration_enabled": "y",
+            "show_upcoming_event_on_homepage": "y",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+
+    # All boolean settings must be stored as the string "true", not Python True
+    assert SiteSettings.get("stripe_enabled") == "true", "stripe_enabled must be the string 'true'"
+    assert SiteSettings.get("paypal_enabled") == "true", "paypal_enabled must be the string 'true'"
+    assert SiteSettings.get("passkeys_enabled") == "true", "passkeys_enabled must be the string 'true'"
+    assert SiteSettings.get("steam_enabled") == "true", "steam_enabled must be the string 'true'"
+    assert SiteSettings.get("registration_enabled") == "true"
+    assert SiteSettings.get("show_upcoming_event_on_homepage") == "true"
+
+    # POST with all booleans unchecked — must save as "false"
+    response = client.post(
+        "/admin/settings",
+        data={
+            "site_name": "Test Site",
+            "ui_theme": "dark",
+            "paypal_mode": "sandbox",
+            # no checkbox fields submitted = unchecked = False
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert SiteSettings.get("stripe_enabled") == "false"
+    assert SiteSettings.get("paypal_enabled") == "false"
+    assert SiteSettings.get("passkeys_enabled") == "false"
+    assert SiteSettings.get("steam_enabled") == "false"
+
+
 def test_seed_settings_is_idempotent(app):
     with app.app_context():
         runner = app.test_cli_runner()

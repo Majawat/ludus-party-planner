@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, abort, flash, redirect, request, url_for
+from flask import Blueprint, current_app, render_template, abort, flash, redirect, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import select, func
 
@@ -168,16 +168,16 @@ def suggestion_add(slug):
                     year = details.get("year")
                     min_p = details.get("min_players")
                     max_p = details.get("max_players")
-            except Exception:
-                pass
+            except Exception as e:
+                current_app.logger.warning(f"BGG game lookup failed for id {bgg_id}: {e}")
         elif steam_app_id:
             try:
                 details = get_steam_game(steam_app_id)
                 if details:
                     image_url = details.get("image_url")
                     description = details.get("description")
-            except Exception:
-                pass
+            except Exception as e:
+                current_app.logger.warning(f"Steam game lookup failed for id {steam_app_id}: {e}")
 
         duplicate = GameSuggestion.query.filter_by(
             event_id=event.id,
@@ -254,6 +254,7 @@ def game_search():
     source = request.args.get("source", "all")
     try:
         results = search_games(q, source) if len(q) >= 2 else []
-    except Exception:
+    except Exception as e:
+        current_app.logger.warning(f"game_search failed for q={q!r}: {e}")
         results = []
     return render_template("public/game_search_results.html", results=results)
