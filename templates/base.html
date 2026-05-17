@@ -26,11 +26,29 @@
     </div>
     <div class="navbar-end gap-2">
       {% if current_user.is_authenticated %}
-        {% if current_user.is_admin %}
-          <a href="{{ url_for('admin.dashboard') }}" class="btn btn-accent btn-sm">Admin</a>
-        {% endif %}
-        <a href="{{ url_for('account.dashboard') }}" class="btn btn-ghost btn-sm">Dashboard</a>
-        <a href="{{ url_for('auth.logout') }}" class="btn btn-ghost btn-sm">Logout</a>
+        <div class="dropdown dropdown-end">
+          <div tabindex="0" role="button" class="btn btn-ghost">
+            {{ current_user.name }}
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+          <ul tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-50 w-48 p-2 shadow">
+            <li><a href="{{ url_for('account.dashboard') }}">Dashboard</a></li>
+            <li><a href="{{ url_for('account.profile') }}">My Profile</a></li>
+            {% if current_user.is_admin %}
+            <li><hr class="my-1"></li>
+            <li><a href="{{ url_for('admin.dashboard') }}" class="text-warning">Admin Panel</a></li>
+            {% endif %}
+            <li><hr class="my-1"></li>
+            <li>
+              <form method="post" action="{{ url_for('auth.logout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="w-full text-left text-error">Log Out</button>
+              </form>
+            </li>
+          </ul>
+        </div>
       {% else %}
         <a href="{{ url_for('auth.login') }}" class="btn btn-ghost btn-sm">Login</a>
         <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-sm">Register</a>
