@@ -9,7 +9,7 @@ import challonge
 from extensions import csrf
 from forms import ChangePasswordForm, EventRegistrationForm, PotluckItemForm, SetPasswordForm
 from mailer import send_registration_confirmation_email, send_registration_pending_payment_email
-from models import Event, EventQuestion, LoanerEquipment, LoanerRequest, PotluckItem, Registration, RegistrationAnswer, Seat, SiteSettings, TicketType, Tournament, TournamentParticipant, UserPlatformAccount, db, utcnow
+from models import Event, EventQuestion, LoanerEquipment, LoanerRequest, PotluckItem, Registration, RegistrationAnswer, Seat, SiteSettings, TicketType, Tournament, TournamentParticipant, UserPlatformAccount, db, get_allowed_themes, utcnow
 from payments import (
     capture_paypal_order,
     create_paypal_order,
@@ -48,6 +48,7 @@ def profile():
     connected = {acct.platform: acct for acct in current_user.platform_accounts}
     set_password_form = SetPasswordForm() if not current_user.has_password else None
     change_password_form = ChangePasswordForm() if current_user.has_password else None
+    allowed_themes = get_allowed_themes()
     return render_template(
         "account/profile.html",
         configured_providers=configured_providers,
@@ -56,7 +57,27 @@ def profile():
         connected=connected,
         set_password_form=set_password_form,
         change_password_form=change_password_form,
+        allowed_themes=allowed_themes,
     )
+
+
+@account_bp.route("/account/theme", methods=["POST"])
+@login_required
+def set_theme():
+    theme = request.form.get("theme", "").strip()
+    if not theme or theme == "default":
+        current_user.preferred_theme = None
+        db.session.commit()
+        flash("Theme preference cleared.", "success")
+        return redirect(url_for("account.profile"))
+    allowed = get_allowed_themes()
+    if theme not in allowed:
+        flash("Invalid theme selection.", "error")
+        return redirect(url_for("account.profile"))
+    current_user.preferred_theme = theme
+    db.session.commit()
+    flash("Theme preference saved.", "success")
+    return redirect(url_for("account.profile"))
 
 
 @account_bp.route("/account/set-password", methods=["POST"])

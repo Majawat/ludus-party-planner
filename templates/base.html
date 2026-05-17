@@ -1,6 +1,24 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="{% if request.path.startswith('/admin') %}dim{% else %}{{ ui_theme | default('dark') }}{% endif %}">
 <head>
+  {% if not request.path.startswith('/admin') %}
+  <script>
+  (function() {
+    var userPref = {{ (current_user.preferred_theme if current_user.is_authenticated and current_user.preferred_theme else '') | tojson }};
+    var darkDefault = {{ default_dark_theme | tojson }};
+    var lightDefault = {{ default_light_theme | tojson }};
+    var theme;
+    if (userPref) {
+      theme = userPref;
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      theme = darkDefault;
+    } else {
+      theme = lightDefault;
+    }
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+  </script>
+  {% endif %}
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}{{ site_name }}{% endblock %}</title>

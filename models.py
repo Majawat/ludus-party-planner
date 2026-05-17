@@ -40,6 +40,7 @@ class User(UserMixin, db.Model):
     newsletter_opt_in = db.Column(db.Boolean, default=False, nullable=False)
     avatar_url = db.Column(db.Text, nullable=True)
     email_verified_at = db.Column(db.DateTime, nullable=True)
+    preferred_theme = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
@@ -553,3 +554,19 @@ def unique_slug(base_slug: str, exclude_id: int = None) -> str:
             return slug
         slug = f"{base_slug}-{n}"
         n += 1
+
+
+_ALL_THEMES = [
+    "dark", "dracula", "night", "synthwave", "halloween",
+    "forest", "black", "luxury", "dim", "light", "cupcake",
+    "retro", "garden", "lofi", "autumn", "nord",
+]
+
+
+def get_allowed_themes():
+    """Returns themes users may select. Empty allowed_themes setting = all themes."""
+    raw = SiteSettings.get("allowed_themes", "").strip()
+    if not raw:
+        return list(_ALL_THEMES)
+    configured = [t.strip() for t in raw.splitlines() if t.strip()]
+    return [t for t in configured if t in _ALL_THEMES]
