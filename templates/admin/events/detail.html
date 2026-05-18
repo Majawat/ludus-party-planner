@@ -108,6 +108,14 @@
         <p class="text-base-content/70 text-sm">Manage seat labels and view assignments.</p>
       </div>
     </a>
+
+    <a href="{{ url_for('admin.print_files', id=event.id) }}"
+       class="card bg-base-200 shadow hover:shadow-md transition-shadow cursor-pointer">
+      <div class="card-body">
+        <h2 class="card-title">Print Files</h2>
+        <p class="text-base-content/70 text-sm">Download name tag STLs and nameplate 3MF files.</p>
+      </div>
+    </a>
     {% endif %}
 
     <a href="{{ url_for('admin.schedule_list', id=event.id) }}"

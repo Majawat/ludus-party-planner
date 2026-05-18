@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import zipfile
 from datetime import datetime, timedelta, timezone
 
 import requests as http_requests
@@ -388,6 +389,15 @@ def _get_registration_or_404(event, rid):
     if reg is None or reg.event_id != event.id:
         abort(404)
     return reg
+
+
+def _print_display_name(user):
+    """Gamertag if set, otherwise first_name. Always uppercase."""
+    return (
+        getattr(user, "gamertag", None)
+        or getattr(user, "first_name", None)
+        or "ATTENDEE"
+    ).strip().upper()
 
 
 @admin_bp.route("/events/<int:id>/registrations")
@@ -1599,4 +1609,133 @@ def logs():
         logs=pagination,
         action_types=action_types,
         current_action=action_filter,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Print Files
+# ---------------------------------------------------------------------------
+
+@admin_bp.route("/events/<int:id>/print-files")
+def print_files(id):
+    event = _get_event_or_404(id)
+    registrations = [r for r in event.registrations if r.status != "cancelled"]
+    return render_template(
+        "admin/events/print_files.html",
+        event=event,
+        registrations=registrations,
+    )
+
+
+@admin_bp.route("/events/<int:id>/print-files/<int:rid>/nametag")
+def print_nametag(id, rid):
+    event = _get_event_or_404(id)
+    reg = _get_registration_or_404(event, rid)
+    display_name = _print_display_name(reg.user)
+
+    try:
+        from print_generator import generate_nametag
+        stl_bytes = generate_nametag(display_name)
+    except Exception as e:
+        current_app.logger.error(f"Name tag generation failed for {display_name}: {e}")
+        flash(
+            "Failed to generate name tag. Ensure build123d and "
+            "required fonts are installed.",
+            "error",
+        )
+        return redirect(url_for("admin.print_files", id=event.id))
+
+    filename = f"{display_name.lower()}_nametag.stl"
+    return Response(
+        stl_bytes,
+        mimetype="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@admin_bp.route("/events/<int:id>/print-files/<int:rid>/nameplate")
+def print_nameplate(id, rid):
+    event = _get_event_or_404(id)
+    reg = _get_registration_or_404(event, rid)
+    display_name = _print_display_name(reg.user)
+    year = str(event.start_datetime.year)
+
+    try:
+        from print_generator import generate_nameplate
+        tmf_bytes = generate_nameplate(display_name, year)
+    except Exception as e:
+        current_app.logger.error(f"Nameplate generation failed for {display_name}: {e}")
+        flash("Failed to generate nameplate.", "error")
+        return redirect(url_for("admin.print_files", id=event.id))
+
+    filename = f"{display_name.lower()}_nameplate.3mf"
+    return Response(
+        tmf_bytes,
+        mimetype="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@admin_bp.route("/events/<int:id>/print-files/download", methods=["POST"])
+def print_download(id):
+    event = _get_event_or_404(id)
+
+    raw_ids = request.form.getlist("reg_ids")
+    file_type = request.form.get("file_type", "")
+
+    if not raw_ids:
+        flash("No attendees selected.", "error")
+        return redirect(url_for("admin.print_files", id=event.id))
+
+    if file_type not in ("nametags", "nameplates"):
+        abort(400)
+
+    registrations = []
+    for raw_id in raw_ids:
+        try:
+            reg = _get_registration_or_404(event, int(raw_id))
+            registrations.append(reg)
+        except Exception:
+            abort(404)
+
+    zip_buffer = io.BytesIO()
+    errors = []
+    year = str(event.start_datetime.year)
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for reg in registrations:
+            display_name = _print_display_name(reg.user)
+            try:
+                if file_type == "nametags":
+                    from print_generator import generate_nametag
+                    file_bytes = generate_nametag(display_name)
+                    filename = f"{display_name.lower()}_nametag.stl"
+                else:
+                    from print_generator import generate_nameplate
+                    file_bytes = generate_nameplate(display_name, year)
+                    filename = f"{display_name.lower()}_nameplate.3mf"
+                zf.writestr(filename, file_bytes)
+            except Exception as e:
+                current_app.logger.error(
+                    f"{file_type} generation failed for {display_name}: {e}"
+                )
+                errors.append(display_name)
+
+    if errors:
+        flash(
+            f"Some files failed to generate: {', '.join(errors)}. "
+            "Check that build123d and required fonts are installed.",
+            "warning",
+        )
+
+    if len(registrations) == len(errors):
+        flash("All files failed to generate.", "error")
+        return redirect(url_for("admin.print_files", id=event.id))
+
+    zip_buffer.seek(0)
+    zip_filename = f"{event.slug}-{file_type}.zip"
+    return Response(
+        zip_buffer.getvalue(),
+        mimetype="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={zip_filename}"},
     )
