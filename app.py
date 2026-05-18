@@ -26,13 +26,6 @@ def create_app(test_config=None):
     )
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-    app.config["MAIL_SERVER"] = os.environ.get("MAIL_SERVER", "localhost")
-    app.config["MAIL_PORT"] = int(os.environ.get("MAIL_PORT") or 587)
-    app.config["MAIL_USERNAME"] = os.environ.get("MAIL_USERNAME")
-    app.config["MAIL_PASSWORD"] = os.environ.get("MAIL_PASSWORD")
-    app.config["MAIL_USE_TLS"] = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
-    app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_DEFAULT_SENDER")
-
     if test_config:
         app.config.update(test_config)
 
@@ -165,6 +158,12 @@ def create_app(test_config=None):
         "passkeys_enabled": "false",
         "webauthn_rp_id": "",
         "webauthn_origin": "",
+        "mail_server": "",
+        "mail_port": "587",
+        "mail_use_tls": "true",
+        "mail_username": "",
+        "mail_password": "",
+        "mail_default_sender": "",
     }
 
     @app.cli.command("seed-settings")

@@ -221,7 +221,11 @@ Sends all transactional and mass email via Flask-Mail. Named `mailer.py` (not
 `send_registration_pending_payment_email` (sent when a Stripe or PayPal checkout
 is initiated but not yet completed), and `send_mass_email` (used by the admin mass
 email composer). All functions import `mail` from `app` inside the function body to
-avoid circular imports.
+avoid circular imports. `_apply_mail_settings()` is a module-level helper called at
+the start of every send function — it reads the six `mail_*` keys from SiteSettings
+and updates `app.config` so Flask-Mail always uses the current settings. If
+`mail_server` is empty, `MAIL_SUPPRESS_SEND` is set to `True` automatically so a
+fresh install degrades gracefully without connection errors.
 
 ### challonge.py
 Thin wrapper around the Challonge REST API v1 (`api.challonge.com/v1`). All
@@ -396,6 +400,12 @@ itad_api_key                     = ""
 passkeys_enabled                 = "false"
 webauthn_rp_id                   = ""   -- e.g. "yourlan.party"; required behind a reverse proxy
 webauthn_origin                  = ""   -- e.g. "https://yourlan.party"; required behind a reverse proxy
+mail_server                      = ""
+mail_port                        = "587"
+mail_use_tls                     = "true"   (boolean, handled by _BOOL_SETTINGS)
+mail_username                    = ""
+mail_password                    = ""       (stored plain, protected by server security)
+mail_default_sender              = ""
 ```
 
 The first-run wizard also writes `setup_complete = "true"` when onboarding is done.
@@ -1093,6 +1103,17 @@ Still planned for v1.3 (not yet built):
 
 ## Key Design Decisions
 
+**Mail settings stored in site_settings, not .env**
+All mail configuration (server, port, TLS, username, password,
+default sender) is stored in site_settings and configurable via
+the admin UI. This allows changing email providers (Gmail,
+Microsoft 365, Zoho, etc.) without SSH access. mailer.py reads
+from SiteSettings dynamically before each send rather than from
+app.config at startup. The only env vars are SECRET_KEY,
+FLASK_APP, and DATABASE_URL. mail_password is stored in the
+database — acceptable for a personal home server where the
+operator is the only admin.
+
 **is_admin boolean, not a roles table**
 Only two permission levels exist: admin and user. If a third level is ever
 needed, add it then. Don't build a permissions system speculatively.
@@ -1456,27 +1477,18 @@ mapped to `./data/ludus.db` on the host. Back up this file.
 
 ## Environment Variables
 
-```
-# .env.example — commit this. Never commit .env.
+The .env file contains only three values:
 
-SECRET_KEY=                         # Long random string. Required.
+```
+SECRET_KEY=      # Required. Signs sessions. Generate with:
+                 # python3 -c "import secrets; print(secrets.token_hex(32))"
+FLASK_APP=app    # Required for flask CLI commands.
 DATABASE_URL=sqlite:///data/ludus.db
-
-MAIL_SERVER=
-MAIL_PORT=587
-MAIL_USERNAME=
-MAIL_PASSWORD=
-MAIL_USE_TLS=true
-MAIL_DEFAULT_SENDER=
-
-# Optional — Steam API key for persona name lookup (Steam OpenID login works
-# without it, but usernames will display as "Steam User")
-STEAM_API_KEY=
-
-# Note: PayPal, Stripe, OAuth (Discord/Google), and Challonge credentials are
-# configured in the admin settings UI (/admin/settings) and stored in the
-# site_settings table, not in this file.
 ```
+
+Everything else — mail, payments, OAuth, APIs, site config —
+is configured through the admin settings UI and stored in
+site_settings.
 
 ---
 

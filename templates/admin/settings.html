@@ -47,6 +47,67 @@
       </div>
     </div>
 
+    {# --- Mail --- #}
+    <div class="card bg-base-200 shadow mb-6">
+      <div class="card-body">
+        <h2 class="card-title text-lg mb-2">Mail</h2>
+
+        {% if form.mail_server.data %}
+          <div class="badge badge-success gap-1 mb-4">Mail configured</div>
+        {% else %}
+          <div class="badge badge-warning gap-1 mb-4">Mail not configured — emails will not send</div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div class="form-control">
+            {{ form.mail_server.label(class="label label-text font-semibold") }}
+            {{ form.mail_server(class="input input-bordered w-full", placeholder="smtp.gmail.com") }}
+          </div>
+          <div class="form-control">
+            {{ form.mail_port.label(class="label label-text font-semibold") }}
+            {{ form.mail_port(class="input input-bordered w-full", placeholder="587") }}
+          </div>
+        </div>
+
+        <div class="form-control mb-4">
+          <label class="label cursor-pointer justify-start gap-3">
+            {{ form.mail_use_tls(class="toggle toggle-primary") }}
+            <span class="label-text font-semibold">{{ form.mail_use_tls.label.text }}</span>
+          </label>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div class="form-control">
+            {{ form.mail_username.label(class="label label-text font-semibold") }}
+            {{ form.mail_username(class="input input-bordered w-full", placeholder="you@example.com") }}
+          </div>
+          <div class="form-control">
+            {{ form.mail_password.label(class="label label-text font-semibold") }}
+            {{ form.mail_password(class="input input-bordered w-full", autocomplete="new-password", placeholder="Leave blank to keep existing") }}
+          </div>
+        </div>
+
+        <div class="form-control mb-4">
+          {{ form.mail_default_sender.label(class="label label-text font-semibold") }}
+          {{ form.mail_default_sender(class="input input-bordered w-full", placeholder="Ludus <noreply@example.com>") }}
+          {% for error in form.mail_default_sender.errors %}
+            <span class="label-text-alt text-error">{{ error }}</span>
+          {% endfor %}
+        </div>
+
+        <p class="text-sm text-base-content/60 mb-4">
+          Password is stored in the database. Ensure your server is secured.
+        </p>
+
+        {% if form.mail_server.data %}
+          <button type="submit"
+                  formaction="{{ url_for('admin.test_email') }}"
+                  formmethod="post"
+                  class="btn btn-outline btn-sm">Send Test Email</button>
+        {% endif %}
+      </div>
+    </div>
+
     {# --- Appearance --- #}
     <div class="card bg-base-200 shadow mb-6">
       <div class="card-body">

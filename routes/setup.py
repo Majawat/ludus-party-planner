@@ -50,6 +50,12 @@ def step2():
         SiteSettings.set("site_name", form.site_name.data)
         SiteSettings.set("site_tagline", form.site_tagline.data or "")
         SiteSettings.set("contact_email", form.contact_email.data or "")
+        SiteSettings.set("mail_server", form.mail_server.data or "")
+        SiteSettings.set("mail_port", form.mail_port.data or "587")
+        SiteSettings.set("mail_use_tls", "true" if form.mail_use_tls.data else "false")
+        SiteSettings.set("mail_username", form.mail_username.data or "")
+        SiteSettings.set("mail_password", form.mail_password.data or "")
+        SiteSettings.set("mail_default_sender", form.mail_default_sender.data or "")
         SiteSettings.set("ui_theme", form.ui_theme.data)
         SiteSettings.set("setup_complete", "true")
         return redirect(url_for("setup.complete"))
@@ -57,6 +63,12 @@ def step2():
     if not form.is_submitted():
         form.site_name.data = SiteSettings.get("site_name", "Ludus Party Planner")
         form.site_tagline.data = SiteSettings.get("site_tagline", "Board Games & LAN Parties")
+        form.contact_email.data = SiteSettings.get("contact_email", "")
+        form.mail_server.data = SiteSettings.get("mail_server", "")
+        form.mail_port.data = SiteSettings.get("mail_port", "587")
+        form.mail_use_tls.data = SiteSettings.get("mail_use_tls", "true") == "true"
+        form.mail_username.data = SiteSettings.get("mail_username", "")
+        form.mail_default_sender.data = SiteSettings.get("mail_default_sender", "")
         form.ui_theme.data = SiteSettings.get("ui_theme", "dark")
 
     return render_template("setup/step2.html", form=form)
