@@ -202,6 +202,12 @@ class SetupSiteForm(FlaskForm):
     site_name = StringField("Site Name", validators=[DataRequired(), Length(max=200)])
     site_tagline = StringField("Tagline", validators=[Optional(), Length(max=300)])
     contact_email = StringField("Contact Email", validators=[Optional(), Email()])
+    mail_server = StringField("Mail Server (SMTP)", validators=[Optional()])
+    mail_port = StringField("Mail Port", validators=[Optional()])
+    mail_use_tls = BooleanField("Use TLS", default=True)
+    mail_username = StringField("Mail Username", validators=[Optional()])
+    mail_password = StringField("Mail Password", validators=[Optional()])
+    mail_default_sender = StringField("Default Sender Address", validators=[Optional(), Email()])
     ui_theme = SelectField("Site Theme", choices=_THEME_CHOICES)
     submit = SubmitField("Save & Continue")
 
@@ -244,6 +250,14 @@ class AdminSettingsForm(FlaskForm):
     site_name = StringField("Site Name", validators=[DataRequired()])
     site_tagline = StringField("Tagline", validators=[Optional()])
     contact_email = StringField("Contact Email", validators=[Optional(), Email()])
+    # Mail configuration — NOTE: mail_use_tls must also be in _BOOL_SETTINGS in routes/admin.py
+    mail_server = StringField("Mail Server (SMTP)", validators=[Optional()])
+    mail_port = StringField("Mail Port", validators=[Optional()])
+    mail_use_tls = BooleanField("Use TLS")
+    mail_username = StringField("Mail Username", validators=[Optional()])
+    # StringField (not PasswordField) — PasswordField blanks value on re-render, losing saved password
+    mail_password = StringField("Mail Password", validators=[Optional()])
+    mail_default_sender = StringField("Default Sender Address", validators=[Optional(), Email()])
     logo_url = StringField("Logo URL", validators=[Optional()])
     favicon_url = StringField("Favicon URL", validators=[Optional()])
     venmo_handle = StringField("Venmo Handle", validators=[Optional()])

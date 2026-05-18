@@ -36,6 +36,7 @@ _BOOL_SETTINGS = {
     "stripe_enabled",
     "paypal_enabled",
     "passkeys_enabled",
+    "mail_use_tls",
 }
 
 
@@ -93,6 +94,33 @@ def settings():
                 field.data = settings_dict[field.name]
 
     return render_template("admin/settings.html", form=form)
+
+
+@admin_bp.route("/settings/test-email", methods=["POST"])
+def test_email():
+    from mailer import _apply_mail_settings
+    _apply_mail_settings()
+    mail_server = SiteSettings.get("mail_server", "")
+    if not mail_server.strip():
+        flash("Mail server is not configured. Add a mail server in settings first.", "error")
+        return redirect(url_for("admin.settings"))
+    contact = SiteSettings.get("contact_email", "")
+    if not contact:
+        flash("Contact email is not set. Set a contact email in settings first.", "error")
+        return redirect(url_for("admin.settings"))
+    from app import mail
+    from flask_mail import Message
+    try:
+        msg = Message(
+            subject="Ludus Mail Test",
+            recipients=[contact],
+            body="If you received this, your mail settings are working correctly.",
+        )
+        mail.send(msg)
+        flash(f"Test email sent to {contact}.", "success")
+    except Exception as e:
+        flash(f"Mail send failed: {e}", "error")
+    return redirect(url_for("admin.settings"))
 
 
 # ---------------------------------------------------------------------------

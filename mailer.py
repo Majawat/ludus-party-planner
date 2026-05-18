@@ -6,6 +6,30 @@ from flask import current_app, url_for
 from flask_mail import Message
 
 
+def _apply_mail_settings():
+    """Read mail config from site_settings and update app.config.
+    Called before every send so config is always current."""
+    from models import SiteSettings
+    try:
+        port_str = SiteSettings.get("mail_port", "587") or "587"
+        port = int(port_str) if port_str.isdigit() else 587
+        username = SiteSettings.get("mail_username", "") or None
+        password = SiteSettings.get("mail_password", "") or None
+        sender = SiteSettings.get("mail_default_sender", "")
+        current_app.config.update({
+            "MAIL_SERVER": SiteSettings.get("mail_server", ""),
+            "MAIL_PORT": port,
+            "MAIL_USE_TLS": SiteSettings.get("mail_use_tls", "true") == "true",
+            "MAIL_USERNAME": username,
+            "MAIL_PASSWORD": password,
+            "MAIL_DEFAULT_SENDER": sender,
+            "MAIL_SUPPRESS_SEND": not bool(
+                SiteSettings.get("mail_server", "").strip()),
+        })
+    except Exception as e:
+        current_app.logger.warning(f"_apply_mail_settings failed: {e}")
+
+
 class _StripTags(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -26,6 +50,7 @@ def _html_to_plain(html_str: str) -> str:
 
 def send_verification_email(user, raw_token):
     from app import mail
+    _apply_mail_settings()
     verify_url = url_for("auth.verify_email", token=raw_token, _external=True)
     msg = Message(
         subject="Verify your Ludus Party Planner account",
@@ -46,6 +71,7 @@ def send_verification_email(user, raw_token):
 
 def send_password_reset_email(user, raw_token):
     from app import mail
+    _apply_mail_settings()
     reset_url = url_for("auth.reset_password", token=raw_token, _external=True)
     msg = Message(
         subject="Reset your Ludus Party Planner password",
@@ -67,6 +93,7 @@ def send_password_reset_email(user, raw_token):
 def send_registration_pending_payment_email(registration):
     """Sent when a user starts a Stripe or PayPal checkout — payment not yet complete."""
     from app import mail
+    _apply_mail_settings()
     my_reg_url = url_for(
         "account.my_registration",
         slug=registration.event.slug,
@@ -103,6 +130,7 @@ def send_registration_pending_payment_email(registration):
 
 def send_mass_email(recipients, subject, html_body):
     from app import mail
+    _apply_mail_settings()
     success_count = 0
     failed = []
     plain_body = _html_to_plain(html_body)
@@ -121,6 +149,7 @@ def send_mass_email(recipients, subject, html_body):
 
 def send_registration_confirmation_email(registration):
     from app import mail
+    _apply_mail_settings()
     my_reg_url = url_for(
         "account.my_registration",
         slug=registration.event.slug,
