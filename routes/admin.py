@@ -78,7 +78,11 @@ def settings():
         for field in form:
             if field.name in ("submit", "csrf_token"):
                 continue
-            if field.name in _BOOL_SETTINGS:
+            if field.name == "mail_password":
+                # Only overwrite if a new value was submitted; blank means "keep existing"
+                if field.data:
+                    SiteSettings.set("mail_password", field.data)
+            elif field.name in _BOOL_SETTINGS:
                 SiteSettings.set(field.name, "true" if field.data else "false")
             else:
                 SiteSettings.set(field.name, field.data or "")
@@ -87,6 +91,9 @@ def settings():
 
     settings_dict = SiteSettings.all_as_dict()
     for field in form:
+        if field.name in ("mail_password",):
+            # Never repopulate the password into the HTML response
+            continue
         if field.name in settings_dict:
             if field.name in _BOOL_SETTINGS:
                 field.data = settings_dict[field.name] == "true"

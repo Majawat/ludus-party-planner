@@ -11,8 +11,14 @@ def _apply_mail_settings():
     Called before every send so config is always current."""
     from models import SiteSettings
     try:
-        port_str = SiteSettings.get("mail_port", "587") or "587"
-        port = int(port_str) if port_str.isdigit() else 587
+        port_str = (SiteSettings.get("mail_port", "587") or "587").strip()
+        try:
+            port = int(port_str)
+            if not (1 <= port <= 65535):
+                raise ValueError(f"port {port} out of range")
+        except ValueError as exc:
+            current_app.logger.warning(f"_apply_mail_settings: invalid mail_port {port_str!r}: {exc}, defaulting to 587")
+            port = 587
         username = SiteSettings.get("mail_username", "") or None
         password = SiteSettings.get("mail_password", "") or None
         sender = SiteSettings.get("mail_default_sender", "")

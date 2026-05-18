@@ -255,8 +255,7 @@ class AdminSettingsForm(FlaskForm):
     mail_port = StringField("Mail Port", validators=[Optional()])
     mail_use_tls = BooleanField("Use TLS")
     mail_username = StringField("Mail Username", validators=[Optional()])
-    # StringField (not PasswordField) — PasswordField blanks value on re-render, losing saved password
-    mail_password = StringField("Mail Password", validators=[Optional()])
+    mail_password = PasswordField("Mail Password", validators=[Optional()])
     mail_default_sender = StringField("Default Sender Address", validators=[Optional(), Email()])
     logo_url = StringField("Logo URL", validators=[Optional()])
     favicon_url = StringField("Favicon URL", validators=[Optional()])
