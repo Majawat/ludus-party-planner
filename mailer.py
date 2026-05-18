@@ -27,6 +27,7 @@ def _apply_mail_settings():
                 SiteSettings.get("mail_server", "").strip()),
         })
     except Exception as e:
+        current_app.config["MAIL_SUPPRESS_SEND"] = True
         current_app.logger.warning(f"_apply_mail_settings failed: {e}")
 
 

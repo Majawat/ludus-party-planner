@@ -100,10 +100,10 @@
         </p>
 
         {% if form.mail_server.data %}
-          <form method="POST" action="{{ url_for('admin.test_email') }}">
-            {{ form.hidden_tag() }}
-            <button type="submit" class="btn btn-outline btn-sm">Send Test Email</button>
-          </form>
+          <button type="submit"
+                  formaction="{{ url_for('admin.test_email') }}"
+                  formmethod="post"
+                  class="btn btn-outline btn-sm">Send Test Email</button>
         {% endif %}
       </div>
     </div>
