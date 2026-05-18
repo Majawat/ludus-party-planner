@@ -282,26 +282,32 @@ Fields marked [post-v1.0] were added after the initial v1.0 release.
 ### users
 ```
 id                  INTEGER PK
-name                TEXT NOT NULL
+first_name          TEXT NOT NULL
+last_name           TEXT NOT NULL
+gamertag            TEXT NULLABLE
 email               TEXT NOT NULL UNIQUE
 password_hash       TEXT NULLABLE            -- NULL for OAuth-only users
 is_admin            BOOLEAN DEFAULT FALSE NOT NULL
 newsletter_opt_in   BOOLEAN DEFAULT FALSE NOT NULL
 avatar_url          TEXT NULLABLE
 email_verified_at   DATETIME NULLABLE        -- NULL = unverified
-preferred_theme     TEXT NULLABLE            -- [planned-v1.4] user-selected theme; NULL = use site default
+preferred_theme     TEXT NULLABLE            -- user-selected theme; NULL = use site default
 totp_secret         TEXT NULLABLE            -- base32 secret; NULL = 2FA disabled
 totp_backup_codes   TEXT NULLABLE            -- JSON array of hashed single-use codes
 created_at          DATETIME DEFAULT NOW NOT NULL
 updated_at          DATETIME DEFAULT NOW NOT NULL
 ```
+Migration: splits existing `name` column on first space into `first_name` and `last_name`.
+
 Relationships: `platform_accounts` (UserPlatformAccount, back_populates),
 `registrations` (backref), `verification_tokens` (backref), `reset_tokens`
 (backref), `announcements` (backref), `game_suggestions` (backref),
 `suggestion_votes` (backref).
 
 Methods: `set_password`, `check_password`, `has_password` (property),
-`is_verified` (property).
+`is_verified` (property), `name` (@property returning
+`f"{self.first_name} {self.last_name}"` for backwards compatibility in admin
+contexts).
 
 ---
 
@@ -406,8 +412,8 @@ slug                TEXT NOT NULL UNIQUE
 type                TEXT NOT NULL            -- 'lan' or 'board_game'
 status              TEXT NOT NULL DEFAULT 'draft'
                     -- 'draft', 'published', 'archived'
-description         TEXT NULLABLE            -- Full HTML description
-short_description   TEXT NULLABLE            -- One-liner for listing cards
+description         TEXT NULLABLE            -- Full Markdown description
+short_description   TEXT NULLABLE            -- One-liner for listing cards (Markdown supported)
 start_datetime      DATETIME NOT NULL
 end_datetime        DATETIME NOT NULL
 location            TEXT NOT NULL
@@ -428,6 +434,9 @@ location_map_embed_url TEXT NULLABLE         -- [planned-v1.3] iframe src from
 seating_enabled     BOOLEAN DEFAULT FALSE NOT NULL
 registration_open   BOOLEAN DEFAULT TRUE NOT NULL
 registration_closes_at DATETIME NULLABLE
+collect_emergency_contacts BOOLEAN DEFAULT FALSE NOT NULL
+                    -- when True, emergency contact fields appear on registration form
+                    -- regardless of ticket type lodging status
 created_at          DATETIME DEFAULT NOW NOT NULL
 updated_at          DATETIME DEFAULT NOW NOT NULL
 ```
@@ -532,6 +541,7 @@ id                  INTEGER PK
 event_id            INTEGER FK -> events NOT NULL
 registration_id     INTEGER FK -> registrations NOT NULL
 description         TEXT NOT NULL
+event_date          DATE NULLABLE            -- which day of multi-day event; NULL = single-day
 created_at          DATETIME DEFAULT NOW NOT NULL
 updated_at          DATETIME DEFAULT NOW NOT NULL
 ```
@@ -588,6 +598,9 @@ game_description    TEXT NULLABLE            -- [post-v1.0]
 game_year           INTEGER NULLABLE         -- [post-v1.0]
 game_min_players    INTEGER NULLABLE         -- [post-v1.0]
 game_max_players    INTEGER NULLABLE         -- [post-v1.0]
+play_style          TEXT NULLABLE            -- 'co-op', 'competitive', 'both'
+system_requirements TEXT NULLABLE            -- freetext e.g. "Low", "Medium/High", "Requires controller"
+notes               TEXT NULLABLE            -- context from the suggester
 suggested_datetime  DATETIME NULLABLE
 created_at          DATETIME DEFAULT NOW NOT NULL
 ```
@@ -952,87 +965,129 @@ Still planned for v1.3 (not yet built):
   with warning when 0 or 1 remaining; regeneration requires password confirmation
 - Disable requires password confirmation; all 20 tests in `tests/test_2fa.py` pass
 
-### Deferred (Not Built)
+---
 
-- **Coupon codes**: Explicitly deferred, not forgotten. Would need a `coupons`
-  table and integration into the registration payment flow.
-- **QR code check-in scanner UI**: The `checkin_code` UUID is stored on every
-  registration for future use. The scanner UI has not been built.
-- **Self-hosted photo gallery**: `gallery_url` is a link to a Google Photos album.
-  File upload / self-hosted gallery is deferred.
-- **Child/guardian registration**: Not built. No schema support.
+## Future Features Backlog
+
+### Immediate Next Features (build before August event)
+
+- **First + Last name + Gamertag**: Split users.name into first_name and last_name.
+  Add gamertag TEXT NULLABLE. Update registration form to collect all three.
+  Gamertag used everywhere user-facing. Real name in admin only.
+  Migration splits existing name on first space.
+
+- **Potluck per-day**: Add event_date DATE NULLABLE to potluck_items. Multi-day
+  events show per-day sections ("Friday Potluck", "Saturday Potluck"). Migration
+  required (batch alter).
+
+- **Admin registration notification email**: Send to contact_email when
+  registration confirmed. Include attendee name, ticket type, payment status,
+  event name. Silent failure — registration succeeds even if notification fails.
+
+- **Emergency contact decoupled from lodging**: Add collect_emergency_contacts
+  boolean to events. Remove lodging-based conditional. Migration required.
+
+- **Game suggestion detail modal**: Add play_style, system_requirements, notes to
+  GameSuggestion. Detail button on each card opens DaisyUI modal via HTMX showing
+  full game info including voter list (gamertags), current price and historical low
+  via ITAD, Steam link, BGG link. Migration required.
+
+- **Gamertag everywhere user-facing**: Audit all templates. Replace any display of
+  user.name in public/attendee contexts with user.gamertag (fallback:
+  user.first_name). Seat maps, attendee lists, voter lists, tournament brackets,
+  potluck items.
+
+- **Markdown rendering**: Add mistune to requirements.txt. Add a markdown Jinja2
+  filter. Apply to: event description, short description, announcements, schedule
+  descriptions, loaner specs, game suggestion notes, potluck descriptions. Remove
+  `| safe` from these fields. Add "Supports Markdown" hint to admin forms for these
+  fields.
+
+- **Event countdown**: JavaScript countdown on homepage (next event card) and event
+  detail page. Shows days/hours remaining. Hides after event starts. No backend
+  change.
+
+- **Add to Calendar**: Button on event detail page generates and downloads an .ics
+  file. One route, one Python stdlib method. Works with Google Calendar, Apple
+  Calendar, Outlook.
+
+- **Default game search tab by event type**: LAN events open Steam tab by default.
+  Board game events open BGG tab by default. One line of template logic using
+  event.type.
 
 ---
 
-## Remaining Roadmap
+### Near-term (after event, when time allows)
 
-### v1.3 — Remaining planned features
+- **Markdown for custom question help text**: If help/hint text is added to
+  EventQuestion in future, render as Markdown.
 
-**Location Map Embed**
-- New field: `events.location_map_embed_url` (TEXT NULLABLE). Migration required;
-  batch alter on events table.
-- Admin adds the field to the event create/edit form with the note:
-  "Paste the iframe src URL from Google Maps → Share → Embed a map".
-  Admin pastes the src URL only — not the full `<iframe>` HTML.
-- Event detail page shows an iframe if set:
-  ```html
-  <iframe src="{{ event.location_map_embed_url }}" width="100%" height="300"
-          style="border:0;" allowfullscreen="" loading="lazy"></iframe>
-  ```
-  If not set, no iframe is shown. No API key needed.
-- The `location` text field value is also wrapped in a Google Maps search link on
-  the event detail page:
-  ```html
-  <a href="https://www.google.com/maps?q={{ event.location | urlencode }}"
-     target="_blank" rel="noopener">{{ event.location }}</a>
-  ```
-  This works for plain addresses and GPS coordinates alike.
+- **Custom color overrides**: site_settings keys for primary, secondary, accent
+  colors. Injected as CSS variable overrides in base.html inline style block
+  targeting DaisyUI variables. Admin color picker inputs on settings page.
+
+- **Image upload for branding**: Replace logo_url and favicon_url text fields with
+  file upload. Store in static/uploads/branding/. Validate MIME type, size. Show
+  requirements (PNG/SVG, max 2MB, suggested dimensions).
+
+- **Registration confirmation resend**: Admin button on registration detail page to
+  re-trigger confirmation email.
+
+- **Post-event feedback**: Rating (1-5) + optional comment, unlocked for attendees
+  after end_datetime. New event_feedback table. Admin sees aggregate on event hub.
+
+- **Profile photo from OAuth**: On OAuth login/connect, if no avatar_url is set,
+  pull the provider's avatar URL (Steam: avatarfull, Discord: avatar hash URL,
+  Google: picture from userinfo). Store as avatar_url. User can override via URL
+  field on profile page.
+
+- **Event countdown improvements**: If the event is currently running, show
+  "Event is live!" instead of countdown.
 
 ---
 
-### v1.4 — Planned features
+### Medium-term
 
-**User Theme Preference (admin-controlled options)**
-- New field: `users.preferred_theme` (TEXT NULLABLE). Migration required; batch
-  alter on users table.
-- `allowed_themes` site_settings key (JSON array of theme names). Admin restricts
-  the available themes via multi-select on the settings page.
-- Profile page (`/account`): add a "Display Theme" section showing only
-  admin-allowed themes as a select. Saving updates `users.preferred_theme`.
-- `base.html` theme logic: see site_settings section and Key Design Decisions.
+- **STL generation**: Per-attendee seat name tag and trophy nameplate STL files
+  downloadable from admin seat management page. OpenSCAD via subprocess. Deferred
+  pending organizer providing OpenSCAD design reference files. Do not design
+  geometry independently.
 
-**Optional 2FA / TOTP**
-- Dependencies: `pyotp`, `qrcode[pil]` (add to requirements.txt when implementing).
-- New fields on users: `totp_secret` (TEXT NULLABLE), `totp_backup_codes`
-  (TEXT NULLABLE, JSON array of hashed codes) — see Database Schema section.
-- New site_settings key: `totp_required_for_admin = "false"`. If `"true"`, admins
-  without 2FA cannot access `/admin/*` routes.
+- **Seat reservation hold during Stripe checkout**: Soft-reserve chosen seat for
+  10 minutes when Stripe checkout initiated. Release on timeout or cancellation.
+  Prevents race condition on last seat.
 
-Setup flow (`GET/POST /account/security`):
-- Shows current 2FA status.
-- "Enable 2FA" → `GET /account/security/setup`: generates secret via
-  `pyotp.random_base32()`, stores it in session (not DB), shows QR code as a
-  data URI (generated with `qrcode`) and raw secret for manual entry.
-- User submits a valid TOTP code → `POST /account/security/verify`: validates
-  against the session-stored secret. On success: saves `totp_secret` to DB,
-  generates 8 backup codes (random 8-char strings, hash before storing), shows
-  codes once to the user.
-- "Disable 2FA" (requires password confirmation) → `POST /account/security/disable`.
-- "Regenerate backup codes" → `POST /account/security/backup-codes`.
+- **3D printed nametag SVG export**: Low priority. SVG template with gamertag,
+  per-attendee, ZIP download for admin.
 
-Login flow change:
-- After correct password, if `user.totp_secret` is set: store
-  `session["pending_2fa_user_id"]`, redirect to `GET /auth/2fa/verify`.
-- `GET/POST /auth/2fa/verify`: shows TOTP code input. Valid TOTP code or valid
-  backup code (mark as used, remove from list) → complete `login_user()`.
-- On failure: show error; allow retry. After 5 failed attempts, lock out for
-  10 minutes (track attempt count and lockout expiry in session).
+---
 
-Backup codes:
-- Each code is single-use. On use, remove it from the stored list.
-- Dashboard shows a warning if 0 backup codes remain.
+### Long-term / Research required
 
-Everything else is either done or explicitly out of scope (see What NOT to Build).
+- **Eventula database migration**: One-time migration script mapping Eventula
+  (MySQL/PostgreSQL, Laravel schema) to Ludus (SQLite). Research task before
+  implementation. Run on test instance first.
+
+- **FinallyGames rebrand**: Replace Ludus branding with FinallyGames branding via
+  admin settings. No code change — update site_name, logo_url, color settings.
+
+- **QR code check-in scanner UI**: Camera-based scanner on
+  /admin/events/<id>/checkin. html5-qrcode from CDN. Deferred from v1.3.
+
+- **Child/guardian registration**: Minor registrations under a parent account.
+  Requires careful schema design.
+
+- **Self-hosted photo gallery**: event_images table (id, event_id, image_url,
+  caption, display_order). Admin curates highlights post-event. Grid on event page.
+
+- **GDPR data export**: User downloads archive of their personal data. One route,
+  JSON or ZIP.
+
+- **Coupon codes**: CouponCode model with discount logic. Applied at registration.
+  Explicitly deferred — not forgotten.
+
+- **Pre-event survey**: Custom questions already handle this. No separate feature
+  needed.
 
 ---
 
@@ -1195,6 +1250,79 @@ Users created via OAuth (Discord, Google, Steam) start with no password.
 `User.has_password` returns False for these users. They must set a password
 via `/account/set-password` before they can disconnect their last OAuth provider.
 
+**Gamertag is the universal user-facing identity**
+The gamertag field on users is shown everywhere attendees are visible to other
+attendees: seat maps, attendee lists, voter lists on game suggestions, potluck
+signups, tournament brackets and participant lists. Real names (first_name +
+last_name) are only shown in admin views. No exceptions. If a user has no
+gamertag set, fall back to first_name only (never full name in public contexts).
+Admins see full name in all admin routes.
+
+**First name + Last name (not full name)**
+The users table stores first_name and last_name separately. The User model has a
+`name` @property returning `f"{self.first_name} {self.last_name}"` for backwards
+compatibility in admin contexts. The registration form collects first and last name
+separately. Migration splits existing name on first space. Name search in admin
+routes searches both columns.
+
+**HTML for emails only. Markdown everywhere else.**
+Transactional emails (confirmation, notification, reset) and mass email use HTML
+with plain-text fallback. Already implemented. All admin-entered text fields that
+display to users on the site use Markdown rendered via mistune: event description,
+event short description, event announcements, schedule item descriptions, loaner
+equipment specs, game suggestion notes, potluck item descriptions, custom question
+help text (if added). Admin forms show a "Supports Markdown" hint on these fields.
+The `| safe` filter is removed from non-email content. mistune added to
+requirements.txt.
+
+**Game suggestion detail modal**
+Game suggestion cards on the event detail page show minimal info: game image,
+name, vote count, and a "Details" button. Clicking "Details" opens a DaisyUI
+modal loaded via HTMX (lazy, fetched on open not on page load). The modal shows
+the full game record: description, play_style (co-op/competitive/both), min/max
+players, voter list (gamertags of users who upvoted), current price and historical
+low via ITAD, system_requirements, notes, Steam link, BGG link. This replaces the
+organizer's manual game spreadsheet.
+
+**GameSuggestion additional fields**
+GameSuggestion model adds: play_style TEXT NULLABLE ('co-op', 'competitive',
+'both'), system_requirements TEXT NULLABLE (freetext, e.g. "Low", "Medium/High",
+"Requires controller"), notes TEXT NULLABLE (context from the suggester).
+Migration required. The suggestion form on the event page exposes these fields.
+
+**Potluck is per-day**
+PotluckItem adds event_date DATE NULLABLE. When an event spans multiple days, the
+add-item form shows a day selector (same date range logic as ticket valid_days).
+The potluck section on the event detail page and my-registration page groups items
+by day: "Friday Potluck", "Saturday Potluck". Single-day events show no grouping.
+
+**Admin receives email on registration**
+When any registration is confirmed, send a notification email to
+SiteSettings.get("contact_email"). Include: attendee name, ticket type, payment
+status, event name. Sent via mailer.py, wrapped in try/except (failure is silent
+— registration must succeed even if notification fails). This is in addition to
+the existing confirmation email sent to the attendee.
+
+**Emergency contact decoupled from lodging**
+The event model adds collect_emergency_contacts BOOLEAN DEFAULT FALSE. Emergency
+contact fields appear on the registration form when this flag is True, regardless
+of whether any ticket type has includes_lodging. The admin event create/edit form
+has a checkbox: "Collect emergency contact information from attendees". Remove the
+existing conditional that tied emergency contacts to lodging ticket types.
+Migration required (batch alter on events).
+
+**No Discord webhook feature**
+The Discord webhook integration idea is removed from the backlog. The organizer
+does not use Discord for community management — it is used only for voice channels
+during the event.
+
+**STL generation — deferred pending design reference**
+Programmatic STL generation for seat name tags and trophy nameplates is a planned
+feature. OpenSCAD via subprocess is the intended implementation approach. Feature
+is deferred until the organizer provides finalized OpenSCAD design files as a
+reference. Do not design the geometry — wait for the reference. Once provided,
+generate per-attendee STLs downloadable from the admin seat management page.
+
 ---
 
 ## DaisyUI Themes
@@ -1260,6 +1388,20 @@ Every `except` clause that catches broadly (e.g., `except Exception`) must call
 Intentional exceptions to this rule: (1) `activity.log()` — documented as
 never-crash by design; (2) email sends in registration routes — best-effort, a
 failed email must not prevent the registration from succeeding.
+
+**Gamertag vs name rule**
+In any template or route that displays user identity to other users (not admins),
+use `user.gamertag` or fall back to `user.first_name`. Never use `user.name` in
+public contexts. Admin routes and admin templates may use `user.name` (the full
+name property) and display both first_name and last_name. This rule applies to:
+attendee lists, seat maps, voter lists, potluck items, tournament brackets, game
+suggestion cards.
+
+**Markdown rendering**
+Use the markdown Jinja2 filter (via mistune) for all admin-entered text fields
+that render to users on the site. HTML is used for emails only. When adding a new
+text field that will display to users, default to Markdown unless there is a
+specific reason for HTML.
 
 ---
 
