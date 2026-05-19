@@ -16,3 +16,4 @@ python3-openid>=3.2.0
 webauthn>=2.0.0
 pyotp==2.9.0
 qrcode[pil]==8.2
+build123d>=0.8.0

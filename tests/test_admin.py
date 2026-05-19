@@ -1108,3 +1108,207 @@ def test_admin_registration_detail_shows_qa(client, admin_user, regular_user, pu
     assert r.status_code == 200
     assert b"Favourite Game" in r.data
     assert b"Chess" in r.data
+
+
+# ---------------------------------------------------------------------------
+# Print Files
+# ---------------------------------------------------------------------------
+
+def test_print_files_page_returns_200(client, admin_user, published_event, registration, mock_print_generator):
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.get(f"/admin/events/{published_event.id}/print-files")
+    assert r.status_code == 200
+    assert b"Print Files" in r.data
+
+
+def test_print_files_page_403_for_non_admin(client, regular_user, published_event):
+    _login(client, "user@example.com", "userpass123")
+    r = client.get(f"/admin/events/{published_event.id}/print-files")
+    assert r.status_code == 403
+
+
+def test_print_files_unauthenticated_redirects(client, published_event):
+    r = client.get(f"/admin/events/{published_event.id}/print-files")
+    assert r.status_code == 302
+    assert "/login" in r.headers["Location"]
+
+
+def test_single_nametag_download(client, admin_user, published_event, registration, ticket_type, mock_print_generator):
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.get(f"/admin/events/{published_event.id}/print-files/{registration.id}/nametag")
+    assert r.status_code == 200
+    assert ".stl" in r.headers["Content-Disposition"]
+    assert r.data == b"fake_stl_content"
+
+
+def test_single_nameplate_download(client, admin_user, published_event, registration, ticket_type, mock_print_generator):
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.get(f"/admin/events/{published_event.id}/print-files/{registration.id}/nameplate")
+    assert r.status_code == 200
+    assert ".3mf" in r.headers["Content-Disposition"]
+    assert r.data == b"fake_3mf_content"
+
+
+def test_download_uses_gamertag_when_set(client, admin_user, published_event, registration, ticket_type, mock_print_generator, monkeypatch):
+    import routes.admin as admin_mod
+    monkeypatch.setattr(admin_mod, "_print_display_name", lambda user: "METAPIXEL")
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.get(f"/admin/events/{published_event.id}/print-files/{registration.id}/nametag")
+    assert r.status_code == 200
+    assert "metapixel" in r.headers["Content-Disposition"].lower()
+
+
+def test_download_falls_back_to_first_name(client, admin_user, published_event, registration, ticket_type, mock_print_generator, monkeypatch):
+    import routes.admin as admin_mod
+    monkeypatch.setattr(admin_mod, "_print_display_name", lambda user: "ALICE")
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.get(f"/admin/events/{published_event.id}/print-files/{registration.id}/nametag")
+    assert r.status_code == 200
+    assert "alice" in r.headers["Content-Disposition"].lower()
+
+
+def test_bulk_zip_nametags(client, admin_user, published_event, registration, ticket_type, mock_print_generator):
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.post(
+        f"/admin/events/{published_event.id}/print-files/download",
+        data={"reg_ids": [str(registration.id)], "file_type": "nametags"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 200
+    assert "zip" in r.content_type
+
+
+def test_bulk_zip_nameplates(client, admin_user, published_event, registration, ticket_type, mock_print_generator):
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.post(
+        f"/admin/events/{published_event.id}/print-files/download",
+        data={"reg_ids": [str(registration.id)], "file_type": "nameplates"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 200
+    assert "zip" in r.content_type
+
+
+def test_bulk_empty_selection_redirects(client, admin_user, published_event, mock_print_generator):
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.post(
+        f"/admin/events/{published_event.id}/print-files/download",
+        data={"reg_ids": [], "file_type": "nametags"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 302
+    with client.session_transaction() as sess:
+        flashes = sess.get("_flashes", [])
+    assert any("No attendees selected" in msg for _, msg in flashes)
+
+
+def test_bulk_wrong_event_reg_returns_404(client, admin_user, published_event, draft_event, ticket_type, mock_print_generator):
+    other_tt = TicketType(
+        event_id=draft_event.id,
+        name="Day Pass",
+        price=0,
+        quantity_total=10,
+        valid_days="[]",
+    )
+    db.session.add(other_tt)
+    db.session.flush()
+    other_user = User(name="Other Person", email="other2@example.com", email_verified_at=utcnow())
+    other_user.set_password("pass")
+    db.session.add(other_user)
+    db.session.flush()
+    other_reg = Registration(
+        user_id=other_user.id,
+        event_id=draft_event.id,
+        ticket_type_id=other_tt.id,
+        status="confirmed",
+        payment_status="unpaid",
+        checkin_code=str(uuid4()),
+    )
+    db.session.add(other_reg)
+    db.session.commit()
+
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.post(
+        f"/admin/events/{published_event.id}/print-files/download",
+        data={"reg_ids": [str(other_reg.id)], "file_type": "nametags"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 404
+
+
+def test_single_generation_failure_flashes_error(client, admin_user, published_event, registration, ticket_type):
+    import sys
+    import types
+    fake = types.ModuleType("print_generator")
+
+    def _raise(name):
+        raise RuntimeError("build123d not available")
+
+    fake.generate_nametag = _raise
+    fake.generate_nameplate = _raise
+    sys.modules["print_generator"] = fake
+    try:
+        _login(client, "admin@example.com", "adminpass123")
+        r = client.get(
+            f"/admin/events/{published_event.id}/print-files/{registration.id}/nametag",
+            follow_redirects=False,
+        )
+        assert r.status_code == 302
+        with client.session_transaction() as sess:
+            flashes = sess.get("_flashes", [])
+        assert any("Failed to generate" in msg for _, msg in flashes)
+    finally:
+        if "print_generator" in sys.modules:
+            del sys.modules["print_generator"]
+
+
+def test_bulk_partial_failure_returns_zip_with_warning(client, admin_user, published_event, ticket_type):
+    import sys
+    import types
+
+    reg_ids = []
+    for i in range(3):
+        u = User(name=f"Attendee{i}", email=f"bulk{i}@example.com", email_verified_at=utcnow())
+        u.set_password("pass")
+        db.session.add(u)
+        db.session.flush()
+        reg = Registration(
+            user_id=u.id,
+            event_id=published_event.id,
+            ticket_type_id=ticket_type.id,
+            status="confirmed",
+            payment_status="unpaid",
+            checkin_code=str(uuid4()),
+        )
+        db.session.add(reg)
+        db.session.flush()
+        reg_ids.append(reg.id)
+    db.session.commit()
+
+    call_count = [0]
+
+    def _selective_fail(name):
+        call_count[0] += 1
+        if call_count[0] == 2:
+            raise RuntimeError("font missing")
+        return b"fake_stl"
+
+    fake = types.ModuleType("print_generator")
+    fake.generate_nametag = _selective_fail
+    fake.generate_nameplate = lambda name, year: b"fake_3mf"
+    sys.modules["print_generator"] = fake
+    try:
+        _login(client, "admin@example.com", "adminpass123")
+        r = client.post(
+            f"/admin/events/{published_event.id}/print-files/download",
+            data={"reg_ids": [str(rid) for rid in reg_ids], "file_type": "nametags"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 200
+        assert "zip" in r.content_type
+        with client.session_transaction() as sess:
+            flashes = sess.get("_flashes", [])
+        assert any("Some files failed" in msg for _, msg in flashes)
+    finally:
+        if "print_generator" in sys.modules:
+            del sys.modules["print_generator"]

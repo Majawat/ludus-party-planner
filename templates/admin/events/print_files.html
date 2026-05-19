@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Print Files — {{ event.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+
+  <!-- Breadcrumb -->
+  <div class="breadcrumbs text-sm mb-4">
+    <ul>
+      <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
+      <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
+      <li>Print Files</li>
+    </ul>
+  </div>
+
+  <h1 class="text-2xl font-bold mb-6">Print Files — {{ event.name }}</h1>
+
+  <!-- Info bar -->
+  <div class="alert alert-info mb-6">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+         class="stroke-current shrink-0 w-6 h-6">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <span>
+      Name tags use <strong>Liberation Sans Bold</strong>.
+      Nameplates use <strong>Graduate</strong> font.
+      Nameplate year: <strong>{{ event.start_datetime.year }}</strong>.
+      Files use gamertag if set, otherwise first name.
+    </span>
+  </div>
+
+  {% if not registrations %}
+  <div class="card bg-base-200 shadow">
+    <div class="card-body text-center text-base-content/60">
+      <p>No confirmed registrations yet for this event.</p>
+    </div>
+  </div>
+  {% else %}
+
+  <form action="{{ url_for('admin.print_download', id=event.id) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <!-- Bulk action controls -->
+    <div class="flex flex-wrap gap-3 mb-4">
+      <button type="button" class="btn btn-sm btn-ghost"
+        onclick="document.querySelectorAll('[name=reg_ids]').forEach(c=>c.checked=true); return false;">
+        Select All
+      </button>
+      <button type="button" class="btn btn-sm btn-ghost"
+        onclick="document.querySelectorAll('[name=reg_ids]').forEach(c=>c.checked=false); return false;">
+        Select None
+      </button>
+      <button type="submit" name="file_type" value="nametags" class="btn btn-primary btn-sm">
+        Download Name Tags for Selected (.stl)
+      </button>
+      <button type="submit" name="file_type" value="nameplates" class="btn btn-secondary btn-sm">
+        Download Nameplates for Selected (.3mf)
+      </button>
+    </div>
+
+    <!-- Attendee table -->
+    <div class="card bg-base-200 shadow overflow-x-auto">
+      <table class="table table-zebra w-full">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Display Name</th>
+            <th>Real Name</th>
+            <th>Ticket Type</th>
+            <th>Tag</th>
+            <th>Plate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for reg in registrations %}
+          <tr>
+            <td>
+              <input type="checkbox" name="reg_ids" value="{{ reg.id }}"
+                     class="checkbox checkbox-sm" checked>
+            </td>
+            <td class="font-mono font-semibold">
+              {{ reg.user.gamertag or reg.user.first_name or reg.user.name }}
+            </td>
+            <td>{{ reg.user.first_name ~ ' ' ~ reg.user.last_name if reg.user.first_name else reg.user.name }}</td>
+            <td>{{ reg.ticket_type.name }}</td>
+            <td>
+              <a href="{{ url_for('admin.print_nametag', id=event.id, rid=reg.id) }}"
+                 class="btn btn-xs btn-outline">Tag ↓</a>
+            </td>
+            <td>
+              <a href="{{ url_for('admin.print_nameplate', id=event.id, rid=reg.id) }}"
+                 class="btn btn-xs btn-outline">Plate ↓</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </form>
+  {% endif %}
+
+</div>
+{% endblock %}
