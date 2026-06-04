@@ -29,6 +29,10 @@ from models import (
     EmailVerificationToken, PasswordResetToken, SiteSettings, User,
     UserPlatformAccount, WebAuthnCredential, _hash_token, db, utcnow,
 )
+from totp import (
+    generate_totp_secret, get_totp_uri, verify_totp_code,
+    generate_backup_codes, verify_backup_code, qr_code_data_uri,
+)
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -51,69 +55,6 @@ def _get_origin():
     if configured:
         return configured.rstrip("/")
     return request.host_url.rstrip("/")
-
-
-# ---------------------------------------------------------------------------
-# TOTP helpers
-# ---------------------------------------------------------------------------
-
-def _generate_totp_secret():
-    import pyotp
-    return pyotp.random_base32()
-
-
-def _get_totp_uri(secret, user_email):
-    import pyotp
-    site_name = SiteSettings.get("site_name", "Ludus Party Planner")
-    return pyotp.totp.TOTP(secret).provisioning_uri(
-        name=user_email,
-        issuer_name=site_name,
-    )
-
-
-def _verify_totp_code(secret, code):
-    import pyotp
-    return pyotp.TOTP(secret).verify(code, valid_window=1)
-
-
-def _generate_backup_codes():
-    """Returns (raw_codes, hashed_codes). Raw codes shown once to user."""
-    import secrets as _secrets
-    from werkzeug.security import generate_password_hash
-    raw = [_secrets.token_hex(4).upper() for _ in range(8)]
-    hashed = [generate_password_hash(c) for c in raw]
-    return raw, hashed
-
-
-def _verify_backup_code(user, code):
-    """Check code against stored hashes. Removes the used code. Returns True if valid."""
-    import json as _json
-    from werkzeug.security import check_password_hash
-    if not user.totp_backup_codes:
-        return False
-    try:
-        codes = _json.loads(user.totp_backup_codes)
-        if not isinstance(codes, list):
-            raise ValueError("backup codes not a list")
-    except Exception as e:
-        current_app.logger.warning(f"Failed to parse totp_backup_codes for user {user.id}: {e}")
-        return False
-    for i, hashed in enumerate(codes):
-        if check_password_hash(hashed, code.upper().strip()):
-            codes.pop(i)
-            user.totp_backup_codes = _json.dumps(codes)
-            return True
-    return False
-
-
-def _qr_code_data_uri(uri):
-    """Generate QR code as a base64 PNG data URI. No file written to disk."""
-    import io, base64, qrcode
-    img = qrcode.make(uri)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    b64 = base64.b64encode(buf.getvalue()).decode()
-    return f"data:image/png;base64,{b64}"
 
 
 _PROVIDER_CONFIG = {
@@ -607,14 +548,14 @@ def verify_2fa():
         use_backup = request.form.get("use_backup") == "1"
 
         if use_backup:
-            valid = _verify_backup_code(user, code)
+            valid = verify_backup_code(user, code)
             if valid:
                 db.session.commit()
             else:
                 flash("Invalid backup code.", "error")
                 return render_template("auth/2fa_verify.html")
         else:
-            valid = _verify_totp_code(user.totp_secret, code)
+            valid = verify_totp_code(user.totp_secret, code)
             if not valid:
                 flash("Invalid code. Please try again.", "error")
                 return render_template("auth/2fa_verify.html")

@@ -374,14 +374,14 @@ def test_regenerate_produces_new_codes(client, user_with_2fa):
 # ---------------------------------------------------------------------------
 
 def test_verify_uses_sliding_window(app):
-    """_verify_totp_code accepts a code from the previous 30-second window (valid_window=1)."""
-    from routes.auth import _verify_totp_code
+    """verify_totp_code accepts a code from the previous 30-second window (valid_window=1)."""
+    from totp import verify_totp_code
     secret = pyotp.random_base32()
     totp = pyotp.TOTP(secret)
     # Generate a code for 31 seconds ago (previous window)
     prev_code = totp.at(time.time() - 31)
     with app.app_context():
-        assert _verify_totp_code(secret, prev_code) is True
+        assert verify_totp_code(secret, prev_code) is True
 
 
 def test_backup_code_is_single_use(client, user_with_2fa):

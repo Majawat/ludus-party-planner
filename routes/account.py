@@ -19,6 +19,10 @@ from payments import (
     verify_paypal_webhook,
     _get_paypal_checkout_base_url,
 )
+from totp import (
+    generate_totp_secret, get_totp_uri, verify_totp_code,
+    generate_backup_codes, qr_code_data_uri,
+)
 
 account_bp = Blueprint("account", __name__)
 
@@ -993,18 +997,6 @@ def tournament_withdraw(slug, tid):
 # 2FA / TOTP security routes
 # ---------------------------------------------------------------------------
 
-def _get_totp_helpers():
-    """Import TOTP helpers from auth module (avoids circular import at module level)."""
-    from routes.auth import (
-        _generate_totp_secret, _get_totp_uri, _verify_totp_code,
-        _generate_backup_codes, _verify_backup_code, _qr_code_data_uri,
-    )
-    return (
-        _generate_totp_secret, _get_totp_uri, _verify_totp_code,
-        _generate_backup_codes, _verify_backup_code, _qr_code_data_uri,
-    )
-
-
 @account_bp.route("/account/security")
 @login_required
 def security():
@@ -1026,14 +1018,10 @@ def security():
 def security_setup():
     if current_user.has_2fa:
         return redirect(url_for("account.security"))
-    (
-        _generate_totp_secret, _get_totp_uri, _verify_totp_code,
-        _generate_backup_codes, _verify_backup_code, _qr_code_data_uri,
-    ) = _get_totp_helpers()
-    secret = session.get("totp_setup_secret") or _generate_totp_secret()
+    secret = session.get("totp_setup_secret") or generate_totp_secret()
     session["totp_setup_secret"] = secret
-    uri = _get_totp_uri(secret, current_user.email)
-    qr_data_uri = _qr_code_data_uri(uri)
+    uri = get_totp_uri(secret, current_user.email)
+    qr_data_uri = qr_code_data_uri(uri)
     return render_template(
         "account/security_setup.html",
         qr_data_uri=qr_data_uri,
@@ -1047,18 +1035,14 @@ def security_verify_setup():
     secret = session.get("totp_setup_secret")
     if not secret:
         return redirect(url_for("account.security_setup"))
-    (
-        _generate_totp_secret, _get_totp_uri, _verify_totp_code,
-        _generate_backup_codes, _verify_backup_code, _qr_code_data_uri,
-    ) = _get_totp_helpers()
     code = request.form.get("code", "").strip()
-    if not _verify_totp_code(secret, code):
+    if not verify_totp_code(secret, code):
         flash("Invalid code. Please try the code from your app.", "error")
-        uri = _get_totp_uri(secret, current_user.email)
-        qr_data_uri = _qr_code_data_uri(uri)
+        uri = get_totp_uri(secret, current_user.email)
+        qr_data_uri = qr_code_data_uri(uri)
         return render_template("account/security_setup.html",
                                qr_data_uri=qr_data_uri, secret=secret)
-    raw_codes, hashed_codes = _generate_backup_codes()
+    raw_codes, hashed_codes = generate_backup_codes()
     current_user.totp_secret = secret
     current_user.totp_backup_codes = json.dumps(hashed_codes)
     db.session.commit()
@@ -1101,11 +1085,7 @@ def security_regenerate_backup_codes():
     if not current_user.check_password(password):
         flash("Incorrect password.", "error")
         return redirect(url_for("account.security"))
-    (
-        _generate_totp_secret, _get_totp_uri, _verify_totp_code,
-        _generate_backup_codes, _verify_backup_code, _qr_code_data_uri,
-    ) = _get_totp_helpers()
-    raw_codes, hashed_codes = _generate_backup_codes()
+    raw_codes, hashed_codes = generate_backup_codes()
     current_user.totp_backup_codes = json.dumps(hashed_codes)
     db.session.commit()
     session["totp_backup_codes_display"] = raw_codes
