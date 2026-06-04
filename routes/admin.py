@@ -167,6 +167,7 @@ def event_new():
             registration_closes_at=form.registration_closes_at.data or None,
         )
         db.session.add(event)
+        db.session.flush()
         log("event.created", "event", event.id, {"name": event.name})
         db.session.commit()
         flash(f"Event '{event.name}' created.", "success")
