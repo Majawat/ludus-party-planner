@@ -701,11 +701,13 @@ created_at                  DATETIME DEFAULT NOW NOT NULL
 ```
 id              INTEGER PK
 user_id         INTEGER FK -> users NOT NULL
-credential_id   BLOB NOT NULL UNIQUE
-public_key      BLOB NOT NULL
+credential_id   TEXT NOT NULL UNIQUE     -- base64url-encoded bytes
+public_key      TEXT NOT NULL            -- base64url-encoded bytes
 sign_count      INTEGER NOT NULL DEFAULT 0
-name            TEXT NOT NULL            -- user-supplied label (e.g. "YubiKey")
+device_name     TEXT NULLABLE            -- user-supplied label (e.g. "YubiKey")
+aaguid          TEXT NULLABLE
 created_at      DATETIME NOT NULL
+last_used_at    DATETIME NULLABLE
 ```
 
 ---

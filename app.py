@@ -20,7 +20,7 @@ def create_app(test_config=None):
     if test_config is None:
         load_dotenv()
 
-    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
     app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
         "DATABASE_URL", "sqlite:///data/ludus.db"
     )
@@ -28,6 +28,12 @@ def create_app(test_config=None):
 
     if test_config:
         app.config.update(test_config)
+
+    if not app.config.get("SECRET_KEY"):
+        raise RuntimeError(
+            "SECRET_KEY environment variable is required. "
+            "Generate one with: python3 -c \"import secrets; print(secrets.token_hex(32))\""
+        )
 
     # Flask-SQLAlchemy 3.x resolves relative SQLite paths to the instance folder.
     # Convert relative paths to absolute relative to app.root_path instead, so the
