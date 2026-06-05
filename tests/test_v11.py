@@ -22,43 +22,6 @@ def _login(client, email, password):
     )
 
 
-# ---------------------------------------------------------------------------
-# Additional conftest fixtures used locally
-# ---------------------------------------------------------------------------
-
-@pytest.fixture()
-def past_ticket_type(app, past_event):
-    tt = TicketType(
-        event_id=past_event.id,
-        name="Past Pass",
-        price=0.00,
-        quantity_total=30,
-        seatable=False,
-        includes_lodging=False,
-        valid_days=json.dumps(["2025-11-01"]),
-        max_per_user=1,
-        is_active=True,
-    )
-    _db.session.add(tt)
-    _db.session.commit()
-    return tt
-
-
-@pytest.fixture()
-def past_registration(app, regular_user, past_event, past_ticket_type):
-    reg = Registration(
-        user_id=regular_user.id,
-        event_id=past_event.id,
-        ticket_type_id=past_ticket_type.id,
-        status="confirmed",
-        payment_status="unpaid",
-        checkin_code=str(uuid4()),
-    )
-    _db.session.add(reg)
-    _db.session.commit()
-    return reg
-
-
 @pytest.fixture()
 def loaner_equipment(app):
     eq = LoanerEquipment(name="Gaming PC 1", specs="i7-12700, RTX 3060", is_available=True)
@@ -98,7 +61,7 @@ class TestSchedule:
             },
             follow_redirects=False,
         )
-        assert response.status_code in (200, 302)
+        assert response.status_code == 302
         item = EventScheduleItem.query.filter_by(title="Opening Ceremony").first()
         assert item is not None
         assert item.event_id == published_event.id
@@ -132,7 +95,7 @@ class TestSchedule:
             f"/admin/events/{published_event.id}/schedule/{item.id}/delete",
             follow_redirects=False,
         )
-        assert response.status_code in (200, 302)
+        assert response.status_code == 302
         assert EventScheduleItem.query.get(item.id) is None
 
     def test_admin_schedule_delete_htmx_returns_empty(self, client, admin_user, published_event):
@@ -254,7 +217,7 @@ class TestPotluck:
             f"/events/{published_event.slug}/my-registration/potluck/{item.id}/delete",
         )
         # No registration for admin → 404; item untouched
-        assert response.status_code in (403, 404)
+        assert response.status_code == 404
         assert _db.session.get(PotluckItem, item.id) is not None
 
     def test_public_event_detail_shows_potluck(self, client, registration, published_event):

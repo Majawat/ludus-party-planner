@@ -212,6 +212,53 @@ def discord_settings(app):
 
 
 @pytest.fixture()
+def second_user(app):
+    user = User(
+        name="Second User",
+        email="second@example.com",
+        is_admin=False,
+        email_verified_at=utcnow(),
+    )
+    user.set_password("secondpass123")
+    _db.session.add(user)
+    _db.session.commit()
+    return user
+
+
+@pytest.fixture()
+def past_ticket_type(app, past_event):
+    tt = TicketType(
+        event_id=past_event.id,
+        name="Past Pass",
+        price=0.00,
+        quantity_total=30,
+        seatable=False,
+        includes_lodging=False,
+        valid_days=json.dumps(["2025-11-01"]),
+        max_per_user=1,
+        is_active=True,
+    )
+    _db.session.add(tt)
+    _db.session.commit()
+    return tt
+
+
+@pytest.fixture()
+def past_registration(app, regular_user, past_event, past_ticket_type):
+    reg = Registration(
+        user_id=regular_user.id,
+        event_id=past_event.id,
+        ticket_type_id=past_ticket_type.id,
+        status="confirmed",
+        payment_status="unpaid",
+        checkin_code=str(uuid4()),
+    )
+    _db.session.add(reg)
+    _db.session.commit()
+    return reg
+
+
+@pytest.fixture()
 def mock_print_generator(monkeypatch):
     import sys
     import types

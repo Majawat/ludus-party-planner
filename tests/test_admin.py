@@ -1312,3 +1312,39 @@ def test_bulk_partial_failure_returns_zip_with_warning(client, admin_user, publi
     finally:
         if "print_generator" in sys.modules:
             del sys.modules["print_generator"]
+
+
+# ---------------------------------------------------------------------------
+# GET=405 guards on POST-only state-changing admin routes
+# ---------------------------------------------------------------------------
+
+def test_mark_paid_rejects_get(client, admin_user, registration):
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.get(
+        f"/admin/events/{registration.event_id}/registrations/{registration.id}/mark-paid"
+    )
+    assert r.status_code == 405
+
+
+def test_mark_comped_rejects_get(client, admin_user, registration):
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.get(
+        f"/admin/events/{registration.event_id}/registrations/{registration.id}/mark-comped"
+    )
+    assert r.status_code == 405
+
+
+def test_checkin_rejects_get(client, admin_user, registration):
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.get(
+        f"/admin/events/{registration.event_id}/registrations/{registration.id}/check-in"
+    )
+    assert r.status_code == 405
+
+
+def test_cancel_registration_rejects_get(client, admin_user, registration):
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.get(
+        f"/admin/events/{registration.event_id}/registrations/{registration.id}/cancel"
+    )
+    assert r.status_code == 405

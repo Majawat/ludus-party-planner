@@ -2,7 +2,7 @@ import json
 from datetime import timedelta
 from uuid import uuid4
 
-from models import EventQuestion, Registration, RegistrationAnswer, TicketType, db, utcnow
+from models import EventQuestion, Registration, RegistrationAnswer, SiteSettings, TicketType, db, utcnow
 
 
 def _login(client, user):
@@ -320,3 +320,70 @@ def test_unique_constraint_prevents_duplicate_answers(app, regular_user, publish
             assert False, "Should have raised IntegrityError"
         except sqlalchemy.exc.IntegrityError:
             db.session.rollback()
+
+
+# ---------------------------------------------------------------------------
+# Guard and isolation tests
+# ---------------------------------------------------------------------------
+
+def test_registration_enabled_setting_blocks_registration(client, regular_user, published_event, ticket_type):
+    SiteSettings.set("registration_enabled", "false")
+    _login(client, regular_user)
+    client.post(
+        "/events/test-lan-party/register",
+        data={"ticket_type_id": ticket_type.id},
+        follow_redirects=True,
+    )
+    assert Registration.query.count() == 0
+
+
+def test_registration_closes_at_enforced_on_post(client, regular_user, published_event, ticket_type):
+    from datetime import timedelta
+    published_event.registration_closes_at = utcnow() - timedelta(hours=1)
+    db.session.commit()
+    _login(client, regular_user)
+    client.post(
+        "/events/test-lan-party/register",
+        data={"ticket_type_id": ticket_type.id},
+        follow_redirects=True,
+    )
+    assert Registration.query.count() == 0
+
+
+def test_cancel_frees_seat(client, regular_user, published_event, ticket_type, registration, seat):
+    registration.seat_id = seat.id
+    db.session.commit()
+    _login(client, regular_user)
+    client.post("/events/test-lan-party/my-registration/cancel", follow_redirects=True)
+    db.session.refresh(registration)
+    assert registration.status == "cancelled"
+    assert registration.seat_id is None
+
+
+def test_draft_event_register_returns_404(client, regular_user, draft_event):
+    _login(client, regular_user)
+    response = client.get("/events/secret-draft/register")
+    assert response.status_code == 404
+
+
+def test_other_user_cannot_cancel_registration(client, second_user, published_event, ticket_type, registration):
+    client.post("/login", data={"email": second_user.email, "password": "secondpass123"})
+    response = client.post(
+        "/events/test-lan-party/my-registration/cancel",
+        follow_redirects=True,
+    )
+    assert response.status_code == 404
+    db.session.refresh(registration)
+    assert registration.status == "confirmed"
+
+
+def test_unauthenticated_cancel_redirects_to_login(client, published_event, registration):
+    response = client.post("/events/test-lan-party/my-registration/cancel")
+    assert response.status_code == 302
+    assert "/login" in response.headers["Location"]
+
+
+def test_unauthenticated_answers_post_redirects_to_login(client, published_event):
+    response = client.post("/events/test-lan-party/my-registration/answers", data={})
+    assert response.status_code == 302
+    assert "/login" in response.headers["Location"]

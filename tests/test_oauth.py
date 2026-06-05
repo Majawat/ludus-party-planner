@@ -306,7 +306,7 @@ class TestProfilePage:
         resp = client.get("/account")
         assert resp.status_code == 200
         assert b"Change Password" in resp.data
-        assert b"Set Password" not in resp.data or b"Change Password" in resp.data
+        assert b"Set Password" not in resp.data
 
 
 # ---------------------------------------------------------------------------

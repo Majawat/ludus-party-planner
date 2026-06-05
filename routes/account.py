@@ -210,6 +210,10 @@ def register_event(slug):
         flash("You must verify your email address before registering for events.", "warning")
         return redirect(url_for("public.event_detail", slug=slug))
 
+    if SiteSettings.get("registration_enabled", "true") != "true":
+        flash("Registration is currently disabled.", "warning")
+        return redirect(url_for("public.event_detail", slug=slug))
+
     existing = Registration.query.filter_by(
         user_id=current_user.id, event_id=event.id
     ).first()
