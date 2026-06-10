@@ -72,7 +72,7 @@ def test_sold_out_ticket_rejected(client, regular_user, published_event, app):
     client.post("/logout")
 
     # Create a second verified user and try to register
-    second_user = User(name="Second", email="second@example.com", email_verified_at=utcnow())
+    second_user = User(first_name="Second", last_name="User", email="second@example.com", email_verified_at=utcnow())
     second_user.set_password("userpass123")
     db.session.add(second_user)
     db.session.commit()

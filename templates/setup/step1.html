@@ -15,9 +15,25 @@
       {{ form.hidden_tag() }}
 
       <div class="form-control mb-3">
-        {{ form.name.label(class="label label-text font-semibold") }}
-        {{ form.name(class="input input-bordered w-full" + (" input-error" if form.name.errors else ""), placeholder="Your name") }}
-        {% for error in form.name.errors %}
+        {{ form.first_name.label(class="label label-text font-semibold") }}
+        {{ form.first_name(class="input input-bordered w-full" + (" input-error" if form.first_name.errors else ""), placeholder="Jane") }}
+        {% for error in form.first_name.errors %}
+          <span class="label-text-alt text-error">{{ error }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="form-control mb-3">
+        {{ form.last_name.label(class="label label-text font-semibold") }}
+        {{ form.last_name(class="input input-bordered w-full" + (" input-error" if form.last_name.errors else ""), placeholder="Doe") }}
+        {% for error in form.last_name.errors %}
+          <span class="label-text-alt text-error">{{ error }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="form-control mb-3">
+        {{ form.gamertag.label(class="label label-text font-semibold") }}
+        {{ form.gamertag(class="input input-bordered w-full" + (" input-error" if form.gamertag.errors else ""), placeholder="Shown to other attendees (optional)") }}
+        {% for error in form.gamertag.errors %}
           <span class="label-text-alt text-error">{{ error }}</span>
         {% endfor %}
       </div>

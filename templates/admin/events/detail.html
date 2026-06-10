@@ -220,7 +220,7 @@
                 <div class="text-sm text-base-content/70 mt-1 whitespace-pre-wrap">{{ ann.body }}</div>
                 <div class="text-xs text-base-content/40 mt-2">
                   Posted {{ ann.created_at.strftime('%b %-d, %Y at %-I:%M %p') }}
-                  by {{ ann.author.name }}
+                  by {{ ann.author.first_name ~ ' ' ~ ann.author.last_name }}
                 </div>
               </div>
               <form method="POST" action="{{ url_for('admin.announcement_delete', id=event.id, ann_id=ann.id) }}"

@@ -108,7 +108,7 @@
               <td>
                 {% if p.registration_id and p.registration_id in registrations_by_id %}
                   <span class="badge badge-ghost badge-sm">
-                    {{ registrations_by_id[p.registration_id].user.name }}
+                    {{ registrations_by_id[p.registration_id].user.first_name ~ ' ' ~ registrations_by_id[p.registration_id].user.last_name }}
                   </span>
                 {% else %}
                   <span class="text-base-content/40 text-sm">Manual</span>

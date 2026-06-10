@@ -143,7 +143,8 @@ def test_event_detail_404_for_archived(client):
 
 
 def test_attendee_list_hides_last_name(client, regular_user, published_event, ticket_type, registration):
-    regular_user.name = "Regular Lastname"
+    regular_user.first_name = "Regular"
+    regular_user.last_name = "Lastname"
     _db.session.commit()
     response = client.get("/events/test-lan-party")
     assert response.status_code == 200

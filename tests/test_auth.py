@@ -85,7 +85,8 @@ def test_honeypot_rejection(client):
     response = client.post(
         "/register",
         data={
-            "name": "Bot",
+            "first_name": "Bot",
+            "last_name": "Net",
             "email": "bot@example.com",
             "password": "password123",
             "confirm_password": "password123",
@@ -101,7 +102,8 @@ def test_new_registration_is_unverified(client):
     client.post(
         "/register",
         data={
-            "name": "New User",
+            "first_name": "New",
+            "last_name": "User",
             "email": "newuser@example.com",
             "password": "password123",
             "confirm_password": "password123",
@@ -153,7 +155,7 @@ def test_password_reset_token_cannot_be_reused(client, regular_user):
 
 
 def test_email_verification_sets_verified_at(client):
-    user = User(name="Verify Me", email="verify@example.com", email_verified_at=None)
+    user = User(first_name="Verify", last_name="Me", email="verify@example.com", email_verified_at=None)
     user.set_password("password123")
     db.session.add(user)
     db.session.flush()
@@ -173,7 +175,8 @@ def test_duplicate_email_registration_rejected(client):
     client.post(
         "/register",
         data={
-            "name": "First User",
+            "first_name": "First",
+            "last_name": "User",
             "email": "duplicate@example.com",
             "password": "password123",
             "confirm_password": "password123",
@@ -184,7 +187,8 @@ def test_duplicate_email_registration_rejected(client):
     response = client.post(
         "/register",
         data={
-            "name": "Second User",
+            "first_name": "Second",
+            "last_name": "User",
             "email": "duplicate@example.com",
             "password": "password456",
             "confirm_password": "password456",

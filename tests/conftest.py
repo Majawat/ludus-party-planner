@@ -22,7 +22,8 @@ def app():
         # Satisfy the setup guard: every test DB starts with a completed setup state.
         _db.session.add(SiteSettings(key="setup_complete", value="true"))
         setup_admin = User(
-            name="Setup Admin",
+            first_name="Setup",
+            last_name="Admin",
             email="setup@test.invalid",
             is_admin=True,
             email_verified_at=utcnow(),
@@ -42,7 +43,8 @@ def client(app):
 @pytest.fixture()
 def admin_user(app):
     user = User(
-        name="Admin",
+        first_name="Admin",
+        last_name="User",
         email="admin@example.com",
         is_admin=True,
         email_verified_at=utcnow(),
@@ -56,7 +58,8 @@ def admin_user(app):
 @pytest.fixture()
 def regular_user(app):
     user = User(
-        name="Regular",
+        first_name="Regular",
+        last_name="User",
         email="user@example.com",
         is_admin=False,
         email_verified_at=utcnow(),
@@ -70,7 +73,8 @@ def regular_user(app):
 @pytest.fixture()
 def unverified_user(app):
     user = User(
-        name="Unverified",
+        first_name="Unverified",
+        last_name="User",
         email="unverified@example.com",
         is_admin=False,
         email_verified_at=None,
@@ -186,7 +190,8 @@ def registration(app, regular_user, published_event, ticket_type):
 def oauth_user(app):
     """A user created via OAuth with no password and a linked Discord account."""
     user = User(
-        name="OAuth User",
+        first_name="OAuth",
+        last_name="User",
         email="oauth@example.com",
         email_verified_at=utcnow(),
     )
@@ -214,7 +219,8 @@ def discord_settings(app):
 @pytest.fixture()
 def second_user(app):
     user = User(
-        name="Second User",
+        first_name="Second",
+        last_name="User",
         email="second@example.com",
         is_admin=False,
         email_verified_at=utcnow(),

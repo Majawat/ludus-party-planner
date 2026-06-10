@@ -33,7 +33,7 @@
           <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-base-300 cursor-pointer">
             <input type="checkbox" name="registration_ids" value="{{ reg.id }}" class="checkbox checkbox-primary" />
             <div>
-              <span class="font-semibold">{{ reg.user.name }}</span>
+              <span class="font-semibold">{{ reg.user.first_name ~ ' ' ~ reg.user.last_name }}</span>
               <span class="text-sm text-base-content/60 ml-2">{{ reg.ticket_type.name }}</span>
             </div>
           </label>

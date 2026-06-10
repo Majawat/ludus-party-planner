@@ -24,7 +24,9 @@ def step1():
             return render_template("setup/step1.html", form=form)
 
         user = User(
-            name=form.name.data,
+            first_name=form.first_name.data,
+            last_name=form.last_name.data,
+            gamertag=form.gamertag.data or None,
             email=form.email.data,
             is_admin=True,
             email_verified_at=utcnow(),

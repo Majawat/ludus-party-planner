@@ -193,7 +193,7 @@ def create_app(test_config=None):
             return
         user.is_admin = True
         db.session.commit()
-        click.echo(f"'{user.name}' ({email}) is now an admin.")
+        click.echo(f"'{user.first_name} {user.last_name}' ({email}) is now an admin.")
 
     @app.cli.command("seed-setup")
     def seed_setup():

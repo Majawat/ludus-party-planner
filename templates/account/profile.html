@@ -12,8 +12,16 @@
       <h2 class="card-title text-lg mb-4">Profile</h2>
       <dl class="space-y-2">
         <div class="flex gap-2">
-          <dt class="font-semibold w-20">Name</dt>
-          <dd>{{ current_user.name }}</dd>
+          <dt class="font-semibold w-20">First Name</dt>
+          <dd>{{ current_user.first_name }}</dd>
+        </div>
+        <div class="flex gap-2">
+          <dt class="font-semibold w-20">Last Name</dt>
+          <dd>{{ current_user.last_name }}</dd>
+        </div>
+        <div class="flex gap-2">
+          <dt class="font-semibold w-20">Gamertag</dt>
+          <dd>{{ current_user.gamertag or "Not set" }}</dd>
         </div>
         <div class="flex gap-2">
           <dt class="font-semibold w-20">Email</dt>

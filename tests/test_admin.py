@@ -595,7 +595,7 @@ def test_csv_export_returns_csv(client, admin_user, published_event, ticket_type
     response = client.get(f"/admin/events/{published_event.id}/registrations/export.csv")
     assert response.status_code == 200
     assert "text/csv" in response.content_type
-    assert b"Name,Email" in response.data
+    assert b"First Name,Last Name,Gamertag,Email" in response.data
     assert b"Regular" in response.data
 
 
@@ -664,7 +664,7 @@ def test_registration_assign_seat(client, admin_user, published_event, ticket_ty
 def test_registration_assign_seat_blocked_if_taken(
     client, admin_user, published_event, ticket_type, registration, seat
 ):
-    other = User(name="Other", email="other@example.com", email_verified_at=utcnow())
+    other = User(first_name="Other", last_name="User", email="other@example.com", email_verified_at=utcnow())
     other.set_password("otherpass123")
     db.session.add(other)
     db.session.commit()
@@ -734,7 +734,7 @@ def test_user_toggle_admin_cannot_remove_own_status(client, admin_user):
 
 def test_user_toggle_admin_cannot_remove_last_admin(client, admin_user):
     second = User(
-        name="Second Admin", email="second@example.com",
+        first_name="Second", last_name="Admin", email="second@example.com",
         is_admin=True, email_verified_at=utcnow(),
     )
     second.set_password("secondpass123")
@@ -1212,7 +1212,7 @@ def test_bulk_wrong_event_reg_returns_404(client, admin_user, published_event, d
     )
     db.session.add(other_tt)
     db.session.flush()
-    other_user = User(name="Other Person", email="other2@example.com", email_verified_at=utcnow())
+    other_user = User(first_name="Other", last_name="Person", email="other2@example.com", email_verified_at=utcnow())
     other_user.set_password("pass")
     db.session.add(other_user)
     db.session.flush()
@@ -1268,7 +1268,7 @@ def test_bulk_partial_failure_returns_zip_with_warning(client, admin_user, publi
 
     reg_ids = []
     for i in range(3):
-        u = User(name=f"Attendee{i}", email=f"bulk{i}@example.com", email_verified_at=utcnow())
+        u = User(first_name=f"Attendee{i}", last_name="User", email=f"bulk{i}@example.com", email_verified_at=utcnow())
         u.set_password("pass")
         db.session.add(u)
         db.session.flush()
@@ -1354,13 +1354,16 @@ def test_cancel_registration_rejects_get(client, admin_user, registration):
 # Code review regression tests
 # ---------------------------------------------------------------------------
 
-def test_public_name_first_word_of_full_name(app):
-    user = User(name="Alice Smith", email="alice.smith@example.com")
-    assert user.public_name == "Alice"
+def test_public_name_prefers_gamertag(app):
+    user = User(
+        first_name="Alice", last_name="Smith", gamertag="AceGamer",
+        email="alice.smith@example.com",
+    )
+    assert user.public_name == "AceGamer"
 
 
-def test_public_name_single_word_name(app):
-    user = User(name="Alice", email="alice.solo@example.com")
+def test_public_name_falls_back_to_first_name(app):
+    user = User(first_name="Alice", last_name="Smith", email="alice.solo@example.com")
     assert user.public_name == "Alice"
 
 
@@ -1375,9 +1378,9 @@ def test_question_options_list_malformed_json_returns_empty(app, published_event
     assert question.options_list == []
 
 
-def test_print_display_name_falls_back_to_first_word_of_name(app):
+def test_print_display_name_uses_first_name_without_gamertag(app):
     from routes.admin import _print_display_name
-    user = User(name="Alice Smith", email="alice.print@example.com")
+    user = User(first_name="Alice", last_name="Smith", email="alice.print@example.com")
     assert _print_display_name(user) == "ALICE"
 
 
@@ -1392,7 +1395,7 @@ def test_bulk_zip_unique_filenames_for_shared_first_name(
 ):
     import zipfile as zipfile_mod
 
-    other = User(name="Regular Other", email="other@example.com", email_verified_at=utcnow())
+    other = User(first_name="Regular", last_name="Other", email="other@example.com", email_verified_at=utcnow())
     other.set_password("otherpass123")
     db.session.add(other)
     db.session.flush()

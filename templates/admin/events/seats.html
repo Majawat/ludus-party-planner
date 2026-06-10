@@ -33,7 +33,7 @@
                 {% if occupant %}
                   <a href="{{ url_for('admin.registration_detail', id=event.id, rid=occupant.id) }}"
                      class="text-xs link link-hover text-base-content/70 truncate block max-w-full">
-                    {{ occupant.user.name }}
+                    {{ occupant.user.first_name ~ ' ' ~ occupant.user.last_name }}
                   </a>
                 {% else %}
                   <span class="badge badge-success badge-xs mb-1">Available</span>

@@ -21,7 +21,8 @@ def user_with_2fa(app):
                  "IIJJ9900", "KKLL1234", "MMNN5678", "OOPPABCD"]
     hashed_codes = [generate_password_hash(c) for c in raw_codes]
     user = User(
-        name="2FA User",
+        first_name="2FA",
+        last_name="User",
         email="twofauser@example.com",
         is_admin=False,
         email_verified_at=utcnow(),

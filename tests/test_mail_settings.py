@@ -20,7 +20,8 @@ def app():
         _db.create_all()
         _db.session.add(SiteSettings(key="setup_complete", value="true"))
         setup_admin = User(
-            name="Setup Admin",
+            first_name="Setup",
+            last_name="Admin",
             email="setup@test.invalid",
             is_admin=True,
             email_verified_at=utcnow(),
@@ -40,7 +41,8 @@ def client(app):
 @pytest.fixture()
 def admin_user(app):
     user = User(
-        name="Admin",
+        first_name="Admin",
+        last_name="User",
         email="admin@example.com",
         is_admin=True,
         email_verified_at=utcnow(),
@@ -90,7 +92,7 @@ class TestApplyMailSettings:
     def test_send_verification_calls_apply_settings(self, app):
         from mailer import send_verification_email
         with app.app_context():
-            user = User(name="Test", email="test@example.com", email_verified_at=utcnow())
+            user = User(first_name="Test", last_name="User", email="test@example.com", email_verified_at=utcnow())
             _db.session.add(user)
             _db.session.commit()
             with patch("mailer._apply_mail_settings") as mock_apply:

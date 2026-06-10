@@ -43,7 +43,7 @@
           {% for entry in logs.items %}
             <tr>
               <td class="whitespace-nowrap text-sm">{{ entry.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-              <td class="text-sm">{{ entry.user.name if entry.user else "System" }}</td>
+              <td class="text-sm">{{ entry.user.first_name ~ " " ~ entry.user.last_name if entry.user else "System" }}</td>
               <td><code class="text-xs">{{ entry.action }}</code></td>
               <td class="text-sm">
                 {% if entry.target_type and entry.target_id %}
