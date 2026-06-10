@@ -140,3 +140,12 @@ def test_event_detail_404_for_archived(client):
 
     response = client.get("/events/old-lan-party")
     assert response.status_code == 404
+
+
+def test_attendee_list_hides_last_name(client, regular_user, published_event, ticket_type, registration):
+    regular_user.name = "Regular Lastname"
+    _db.session.commit()
+    response = client.get("/events/test-lan-party")
+    assert response.status_code == 200
+    assert b"Regular" in response.data
+    assert b"Lastname" not in response.data

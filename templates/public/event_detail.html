@@ -150,7 +150,7 @@
         <div class="flex flex-wrap gap-2">
           {% for item in potluck_items %}
             <div class="badge badge-outline gap-1">
-              <span class="font-semibold">{{ item.registration.user.name }}:</span>
+              <span class="font-semibold">{{ item.registration.user.public_name }}:</span>
               {{ item.description }}
             </div>
           {% endfor %}
@@ -213,7 +213,7 @@
                       {% if suggestion.suggested_datetime %}
                         <span class="mr-2">{{ suggestion.suggested_datetime.strftime('%-m/%-d %-I:%M %p') }}</span>
                       {% endif %}
-                      — {{ suggestion.suggester.name }}
+                      — {{ suggestion.suggester.public_name }}
                     </div>
                   </div>
                   <div class="flex items-center gap-2 flex-shrink-0">
@@ -364,7 +364,7 @@
         </h2>
         <div class="flex flex-wrap gap-2">
           {% for reg in attendees %}
-            <span class="badge badge-outline">{{ reg.user.name }}</span>
+            <span class="badge badge-outline">{{ reg.user.public_name }}</span>
           {% endfor %}
         </div>
       </div>

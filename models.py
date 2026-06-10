@@ -71,6 +71,13 @@ class User(UserMixin, db.Model):
         return self.email_verified_at is not None
 
     @property
+    def public_name(self):
+        # Identity shown to other attendees. Full name must never appear in
+        # public contexts (see CLAUDE.md "Gamertag vs name rule"); until the
+        # first_name/last_name/gamertag split lands, use the first word of name.
+        return self.name.split()[0] if self.name and self.name.split() else "Attendee"
+
+    @property
     def has_2fa(self):
         return self.totp_secret is not None
 
@@ -466,9 +473,10 @@ class EventQuestion(db.Model):
 
     @property
     def options_list(self):
-        if self.options:
-            return json.loads(self.options)
-        return []
+        try:
+            return json.loads(self.options) if self.options else []
+        except (ValueError, TypeError):
+            return []
 
 
 class RegistrationAnswer(db.Model):

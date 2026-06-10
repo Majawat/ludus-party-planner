@@ -82,7 +82,7 @@
                      class="checkbox checkbox-sm" checked>
             </td>
             <td class="font-mono font-semibold">
-              {{ reg.user.gamertag or reg.user.first_name or reg.user.name }}
+              {{ reg.user.gamertag or reg.user.first_name or reg.user.public_name }}
             </td>
             <td>{{ reg.user.first_name ~ ' ' ~ reg.user.last_name if reg.user.first_name else reg.user.name }}</td>
             <td>{{ reg.ticket_type.name }}</td>

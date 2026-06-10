@@ -265,11 +265,6 @@ def mock_print_generator(monkeypatch):
     fake = types.ModuleType("print_generator")
     fake.generate_nametag = lambda name: b"fake_stl_content"
     fake.generate_nameplate = lambda name, year: b"fake_3mf_content"
-    fake.get_print_name = lambda user: (
-        getattr(user, "gamertag", None)
-        or getattr(user, "first_name", None)
-        or "TEST"
-    ).upper()
     sys.modules["print_generator"] = fake
     yield
     if "print_generator" in sys.modules:

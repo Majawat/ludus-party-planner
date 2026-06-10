@@ -1348,3 +1348,87 @@ def test_cancel_registration_rejects_get(client, admin_user, registration):
         f"/admin/events/{registration.event_id}/registrations/{registration.id}/cancel"
     )
     assert r.status_code == 405
+
+
+# ---------------------------------------------------------------------------
+# Code review regression tests
+# ---------------------------------------------------------------------------
+
+def test_public_name_first_word_of_full_name(app):
+    user = User(name="Alice Smith", email="alice.smith@example.com")
+    assert user.public_name == "Alice"
+
+
+def test_public_name_single_word_name(app):
+    user = User(name="Alice", email="alice.solo@example.com")
+    assert user.public_name == "Alice"
+
+
+def test_question_options_list_malformed_json_returns_empty(app, published_event):
+    question = EventQuestion(
+        event_id=published_event.id,
+        question_text="Broken",
+        question_type="select",
+        field_name="broken",
+        options="{not valid json",
+    )
+    assert question.options_list == []
+
+
+def test_print_display_name_falls_back_to_first_word_of_name(app):
+    from routes.admin import _print_display_name
+    user = User(name="Alice Smith", email="alice.print@example.com")
+    assert _print_display_name(user) == "ALICE"
+
+
+def test_print_filename_sanitizes_display_name(app):
+    from routes.admin import _print_filename
+    assert _print_filename('AL/ICE "X"') == "al-ice-x"
+    assert _print_filename("///") == "attendee"
+
+
+def test_bulk_zip_unique_filenames_for_shared_first_name(
+    client, admin_user, published_event, ticket_type, registration, regular_user, mock_print_generator
+):
+    import zipfile as zipfile_mod
+
+    other = User(name="Regular Other", email="other@example.com", email_verified_at=utcnow())
+    other.set_password("otherpass123")
+    db.session.add(other)
+    db.session.flush()
+    other_reg = Registration(
+        user_id=other.id,
+        event_id=published_event.id,
+        ticket_type_id=ticket_type.id,
+        status="confirmed",
+        payment_status="unpaid",
+        checkin_code=str(uuid4()),
+    )
+    db.session.add(other_reg)
+    db.session.commit()
+
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.post(
+        f"/admin/events/{published_event.id}/print-files/download",
+        data={"reg_ids": [str(registration.id), str(other_reg.id)], "file_type": "nametags"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 200
+    names = zipfile_mod.ZipFile(io.BytesIO(r.data)).namelist()
+    assert len(names) == 2
+    assert len(set(names)) == 2
+
+
+def test_event_clone_writes_activity_log(client, admin_user, published_event, ticket_type):
+    from models import ActivityLog
+
+    _login(client, "admin@example.com", "adminpass123")
+    r = client.post(f"/admin/events/{published_event.id}/clone", follow_redirects=False)
+    assert r.status_code == 302
+    entry = (
+        ActivityLog.query.filter_by(action="event.created")
+        .order_by(ActivityLog.id.desc())
+        .first()
+    )
+    assert entry is not None
+    assert json.loads(entry.details)["cloned_from"] == published_event.id

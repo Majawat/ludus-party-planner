@@ -585,7 +585,8 @@ def stripe_webhook():
     webhook_secret = SiteSettings.get("stripe_webhook_secret", "")
     try:
         event_obj = stripe_lib.Webhook.construct_event(payload, sig_header, webhook_secret)
-    except Exception:
+    except Exception as e:
+        current_app.logger.warning(f"Stripe webhook signature verification failed: {e}")
         return ("", 400)
 
     if event_obj["type"] == "checkout.session.completed":
@@ -612,7 +613,8 @@ def paypal_webhook():
 
     try:
         data = _json.loads(raw_body)
-    except Exception:
+    except Exception as e:
+        current_app.logger.warning(f"PayPal webhook body was not valid JSON: {e}")
         return ("", 400)
 
     if data.get("event_type") == "CHECKOUT.ORDER.APPROVED":
@@ -936,7 +938,7 @@ def tournament_signup(slug, tid):
     if tournament.challonge_url_slug and _challonge_configured_account():
         try:
             result = challonge.add_participants_bulk(
-                tournament.challonge_url_slug, [{"name": current_user.name}]
+                tournament.challonge_url_slug, [{"name": current_user.public_name}]
             )
             if isinstance(result, list) and result:
                 cp_id = result[0]["participant"]["id"]
@@ -947,7 +949,7 @@ def tournament_signup(slug, tid):
         tournament_id=tid,
         registration_id=registration.id,
         challonge_participant_id=cp_id,
-        display_name=current_user.name,
+        display_name=current_user.public_name,
     )
     db.session.add(participant)
     db.session.commit()

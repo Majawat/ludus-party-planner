@@ -110,13 +110,3 @@ def generate_nametag(gamertag: str) -> bytes:
         return tmp_path.read_bytes()
     finally:
         tmp_path.unlink(missing_ok=True)
-
-
-def get_print_name(user) -> str:
-    """Returns gamertag if set, otherwise first_name.
-    Used as the identity for all generated print files."""
-    return (
-        getattr(user, "gamertag", None)
-        or getattr(user, "first_name", None)
-        or "ATTENDEE"
-    ).strip()
