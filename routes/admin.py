@@ -1,8 +1,9 @@
 import csv
 import io
 import json
+import re
 import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 import requests as http_requests
 from flask import Blueprint, Response, abort, current_app, flash, redirect, render_template, request, url_for
@@ -20,7 +21,7 @@ from models import (
     Event, EventAnnouncement, EventQuestion, EventScheduleItem, LoanerEquipment, LoanerRequest,
     Registration, RegistrationAnswer, Seat, SiteSettings, TicketType, Tournament,
     TournamentParticipant, User,
-    db, slugify, unique_field_name, unique_slug,
+    db, slugify, unique_field_name, unique_slug, utcnow,
 )
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -252,6 +253,7 @@ def event_clone(id):
             is_active=tt.is_active,
         ))
     db.session.commit()
+    log("event.created", "event", clone.id, {"cloned_from": original.id, "name": clone.name})
     flash(f"Event cloned as '{clone.name}'.", "success")
     return redirect(url_for("admin.event_edit", id=clone.id))
 
@@ -393,12 +395,24 @@ def _get_registration_or_404(event, rid):
 
 
 def _print_display_name(user):
-    """Gamertag if set, otherwise first_name. Always uppercase."""
+    """Gamertag if set, otherwise first name. Always uppercase.
+
+    The gamertag/first_name attributes don't exist until the name-split
+    migration lands; until then fall back to user.public_name (first word
+    of the full name) so files aren't all generated as "ATTENDEE".
+    """
     return (
         getattr(user, "gamertag", None)
         or getattr(user, "first_name", None)
-        or "ATTENDEE"
+        or user.public_name
     ).strip().upper()
+
+
+def _print_filename(display_name):
+    """Sanitize a display name for use in download filenames and
+    Content-Disposition headers."""
+    cleaned = re.sub(r"[^a-z0-9_-]+", "-", display_name.lower()).strip("-")
+    return cleaned or "attendee"
 
 
 @admin_bp.route("/events/<int:id>/registrations")
@@ -558,7 +572,7 @@ def registration_mark_paid(id, rid):
         reg.payment_status = "paid"
         reg.payment_method = form.payment_method.data
         reg.payment_processor = "manual"
-        reg.paid_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        reg.paid_at = utcnow()
         if reg.status == "pending":
             reg.status = "confirmed"
         log("registration.marked_paid", "registration", reg.id, {"method": reg.payment_method})
@@ -586,7 +600,7 @@ def registration_mark_comped(id, rid):
 def registration_checkin(id, rid):
     event = _get_event_or_404(id)
     reg = _get_registration_or_404(event, rid)
-    reg.checked_in_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    reg.checked_in_at = utcnow()
     log("registration.checked_in", "registration", reg.id)
     db.session.commit()
     if request.headers.get("HX-Request"):
@@ -1352,7 +1366,8 @@ def tournament_add_participants(id, tid):
             return redirect(url_for("admin.tournament_add_participants", id=id, tid=tid))
 
         regs = Registration.query.filter(Registration.id.in_(selected_ids)).all()
-        participants_data = [{"name": r.user.name} for r in regs]
+        # Tournament brackets are attendee-visible; never send the full name.
+        participants_data = [{"name": r.user.public_name} for r in regs]
 
         try:
             result = challonge.add_participants_bulk(tournament.challonge_url_slug, participants_data)
@@ -1369,7 +1384,7 @@ def tournament_add_participants(id, tid):
                 tournament_id=tid,
                 registration_id=reg.id,
                 challonge_participant_id=cp_id,
-                display_name=reg.user.name,
+                display_name=reg.user.public_name,
             ))
         db.session.commit()
         flash(f"Added {len(regs)} participant(s).", "success")
@@ -1646,7 +1661,7 @@ def print_nametag(id, rid):
         )
         return redirect(url_for("admin.print_files", id=event.id))
 
-    filename = f"{display_name.lower()}_nametag.stl"
+    filename = f"{_print_filename(display_name)}_nametag.stl"
     return Response(
         stl_bytes,
         mimetype="application/octet-stream",
@@ -1669,7 +1684,7 @@ def print_nameplate(id, rid):
         flash("Failed to generate nameplate.", "error")
         return redirect(url_for("admin.print_files", id=event.id))
 
-    filename = f"{display_name.lower()}_nameplate.3mf"
+    filename = f"{_print_filename(display_name)}_nameplate.3mf"
     return Response(
         tmf_bytes,
         mimetype="application/octet-stream",
@@ -1703,18 +1718,25 @@ def print_download(id):
     errors = []
     year = str(event.start_datetime.year)
 
+    used_names = set()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for reg in registrations:
             display_name = _print_display_name(reg.user)
+            # Attendees can share a first name; suffix the registration id so
+            # the ZIP never contains duplicate entry names.
+            base = _print_filename(display_name)
+            if base in used_names:
+                base = f"{base}-{reg.id}"
+            used_names.add(base)
             try:
                 if file_type == "nametags":
                     from print_generator import generate_nametag
                     file_bytes = generate_nametag(display_name)
-                    filename = f"{display_name.lower()}_nametag.stl"
+                    filename = f"{base}_nametag.stl"
                 else:
                     from print_generator import generate_nameplate
                     file_bytes = generate_nameplate(display_name, year)
-                    filename = f"{display_name.lower()}_nameplate.3mf"
+                    filename = f"{base}_nameplate.3mf"
                 zf.writestr(filename, file_bytes)
             except Exception as e:
                 current_app.logger.error(

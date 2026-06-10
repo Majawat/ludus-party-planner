@@ -89,6 +89,7 @@ ludus/
 ├── game_lookup.py          # BGG XML API and Steam store API search/detail functions
 ├── payments.py             # Stripe and PayPal integration helpers
 ├── activity.py             # Admin action logging helper (log function only)
+├── print_generator.py      # build123d name tag (.stl) and nameplate (.3mf) generation
 │
 ├── routes/
 │   ├── __init__.py         # register_blueprints(app) — registers all five blueprints
@@ -895,6 +896,11 @@ GET  POST  /admin/email             Mass email composer
 
 GET        /admin/logs              Activity log — paginated 50/page, newest first,
                                     filterable by action type
+
+GET        /admin/events/<id>/print-files                   3D print files page (name tags / nameplates)
+GET        /admin/events/<id>/print-files/<rid>/nametag     Download single name tag (.stl)
+GET        /admin/events/<id>/print-files/<rid>/nameplate   Download single nameplate (.3mf)
+POST       /admin/events/<id>/print-files/download          Bulk ZIP of selected attendees' files
 ```
 
 ---
@@ -976,6 +982,16 @@ Still planned for v1.3 (not yet built):
 - Backup codes: single-use, hashed with Werkzeug, count shown on security page
   with warning when 0 or 1 remaining; regeneration requires password confirmation
 - Disable requires password confirmation; all 20 tests in `tests/test_2fa.py` pass
+
+**3D print file generation Complete**
+- `print_generator.py` uses build123d (not OpenSCAD) to generate per-attendee
+  name tag `.stl` and multi-color nameplate `.3mf` files
+- Admin page `/admin/events/<id>/print-files`: per-attendee downloads plus bulk
+  ZIP for selected attendees
+- Display name uses gamertag → first_name once those fields exist; until the
+  name-split migration lands it falls back to the first word of `users.name`
+- Requires build123d plus the Graduate and Liberation Sans fonts on the host;
+  generation failures are logged and flashed, never crash the page
 
 ---
 
@@ -1059,11 +1075,6 @@ Still planned for v1.3 (not yet built):
 ---
 
 ### Medium-term
-
-- **STL generation**: Per-attendee seat name tag and trophy nameplate STL files
-  downloadable from admin seat management page. OpenSCAD via subprocess. Deferred
-  pending organizer providing OpenSCAD design reference files. Do not design
-  geometry independently.
 
 - **Seat reservation hold during Stripe checkout**: Soft-reserve chosen seat for
   10 minutes when Stripe checkout initiated. Release on timeout or cancellation.
@@ -1339,12 +1350,12 @@ The Discord webhook integration idea is removed from the backlog. The organizer
 does not use Discord for community management — it is used only for voice channels
 during the event.
 
-**STL generation — deferred pending design reference**
-Programmatic STL generation for seat name tags and trophy nameplates is a planned
-feature. OpenSCAD via subprocess is the intended implementation approach. Feature
-is deferred until the organizer provides finalized OpenSCAD design files as a
-reference. Do not design the geometry — wait for the reference. Once provided,
-generate per-attendee STLs downloadable from the admin seat management page.
+**3D print file generation uses build123d, not OpenSCAD**
+`print_generator.py` generates name tag `.stl` and multi-color nameplate `.3mf`
+files with the build123d Python library — no subprocess, no OpenSCAD. Geometry
+parameters live as module-level constants. build123d and the fonts are host
+dependencies; if they are missing, the admin print-files page still loads and
+download attempts fail gracefully with a flashed error.
 
 ---
 

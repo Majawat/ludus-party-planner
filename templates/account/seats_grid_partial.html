@@ -19,7 +19,7 @@
             <button type="submit" class="btn btn-outline btn-xs btn-error">Release</button>
           </form>
         {% elif is_taken %}
-          <p class="text-xs opacity-50">{{ taken_map[seat.id].user.name }}</p>
+          <p class="text-xs opacity-50">{{ taken_map[seat.id].user.public_name }}</p>
         {% else %}
           <form method="POST"
                 action="{{ url_for('account.seat_claim', slug=event.slug) }}"
