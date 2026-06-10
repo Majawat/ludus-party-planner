@@ -110,7 +110,9 @@ def register():
             flash("An account with that email already exists.", "error")
             return redirect(url_for("auth.register"))
         user = User(
-            name=form.name.data,
+            first_name=form.first_name.data,
+            last_name=form.last_name.data,
+            gamertag=form.gamertag.data or None,
             email=form.email.data.lower(),
             newsletter_opt_in=form.newsletter_opt_in.data,
         )
@@ -338,8 +340,13 @@ def oauth_callback(provider):
         )
         return redirect(url_for("auth.login"))
 
+    # OAuth providers give a single display string; split it into first/last
+    # so the name columns are populated. The user can refine these and add a
+    # gamertag from their profile page later.
+    name_parts = username.split(maxsplit=1)
     new_user = User(
-        name=username,
+        first_name=name_parts[0] if name_parts else username,
+        last_name=name_parts[1] if len(name_parts) > 1 else "",
         email=email.lower(),
         email_verified_at=utcnow(),
     )
@@ -493,14 +500,20 @@ def steam_complete_registration():
 
     form = SteamCompleteRegistrationForm()
     if request.method == "GET":
-        form.name.data = pending.get("persona_name", "")
+        form.gamertag.data = pending.get("persona_name", "")
 
     if form.validate_on_submit():
         email = form.email.data.lower()
         if User.query.filter_by(email=email).first():
             flash("An account with that email already exists.", "error")
             return render_template("auth/steam_complete_registration.html", form=form)
-        new_user = User(name=form.name.data, email=email, email_verified_at=utcnow())
+        new_user = User(
+            first_name=form.first_name.data,
+            last_name=form.last_name.data,
+            gamertag=form.gamertag.data or None,
+            email=email,
+            email_verified_at=utcnow(),
+        )
         new_user.set_password(form.password.data)
         db.session.add(new_user)
         db.session.flush()
@@ -590,7 +603,7 @@ def passkey_register_begin():
         rp_name=SiteSettings.get("site_name", "Ludus Party Planner"),
         user_id=str(current_user.id).encode(),
         user_name=current_user.email,
-        user_display_name=current_user.name,
+        user_display_name=f"{current_user.first_name} {current_user.last_name}",
         authenticator_selection=AuthenticatorSelectionCriteria(
             resident_key=ResidentKeyRequirement.PREFERRED,
             user_verification=UserVerificationRequirement.PREFERRED,

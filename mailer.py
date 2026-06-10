@@ -63,12 +63,12 @@ def send_verification_email(user, raw_token):
         subject="Verify your Ludus Party Planner account",
         recipients=[user.email],
         body=(
-            f"Hi {user.name},\n\n"
+            f"Hi {user.first_name},\n\n"
             f"Verify your email address:\n{verify_url}\n\n"
             "This link expires in 48 hours."
         ),
         html=(
-            f"<p>Hi {user.name},</p>"
+            f"<p>Hi {user.first_name},</p>"
             f"<p><a href='{verify_url}'>Verify your email address</a></p>"
             "<p>This link expires in 48 hours.</p>"
         ),
@@ -84,12 +84,12 @@ def send_password_reset_email(user, raw_token):
         subject="Reset your Ludus Party Planner password",
         recipients=[user.email],
         body=(
-            f"Hi {user.name},\n\n"
+            f"Hi {user.first_name},\n\n"
             f"Reset your password:\n{reset_url}\n\n"
             "This link expires in 1 hour. If you didn't request this, ignore this email."
         ),
         html=(
-            f"<p>Hi {user.name},</p>"
+            f"<p>Hi {user.first_name},</p>"
             f"<p><a href='{reset_url}'>Reset your password</a></p>"
             "<p>This link expires in 1 hour. If you didn't request this, ignore this email.</p>"
         ),
@@ -112,7 +112,7 @@ def send_registration_pending_payment_email(registration):
         subject=f"Complete your payment: {event.name}",
         recipients=[registration.user.email],
         body=(
-            f"Hi {registration.user.name},\n\n"
+            f"Hi {registration.user.first_name},\n\n"
             f"Your spot at {event.name} is reserved but payment is not yet complete.\n\n"
             f"Ticket: {ticket.name} (${ticket.price:.2f})\n"
             f"Date: {event.start_datetime.strftime('%B %-d, %Y')}\n"
@@ -121,7 +121,7 @@ def send_registration_pending_payment_email(registration):
             "If you did not register, please ignore this email."
         ),
         html=(
-            f"<p>Hi {registration.user.name},</p>"
+            f"<p>Hi {registration.user.first_name},</p>"
             f"<p>Your spot at <strong>{event.name}</strong> is reserved but payment is not yet complete.</p>"
             f"<ul>"
             f"<li><strong>Ticket:</strong> {ticket.name} (${ticket.price:.2f})</li>"
@@ -169,7 +169,7 @@ def send_registration_confirmation_email(registration):
         subject=f"Registration confirmed: {event.name}",
         recipients=[registration.user.email],
         body=(
-            f"Hi {registration.user.name},\n\n"
+            f"Hi {registration.user.first_name},\n\n"
             f"You're registered for {event.name}!\n\n"
             f"Ticket: {ticket.name} ({price_str})\n"
             f"Date: {event.start_datetime.strftime('%B %-d, %Y')}\n"
@@ -178,7 +178,7 @@ def send_registration_confirmation_email(registration):
             "See you there!"
         ),
         html=(
-            f"<p>Hi {registration.user.name},</p>"
+            f"<p>Hi {registration.user.first_name},</p>"
             f"<p>You're registered for <strong>{event.name}</strong>!</p>"
             f"<ul>"
             f"<li><strong>Ticket:</strong> {ticket.name} ({price_str})</li>"

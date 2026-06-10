@@ -299,7 +299,8 @@ class TestPasskeyRemove:
         # Create a user with no password and one passkey
         with app.app_context():
             no_pw_user = User(
-                name="NoPw",
+                first_name="NoPw",
+                last_name="User",
                 email="nopw@example.com",
                 email_verified_at=utcnow(),
             )

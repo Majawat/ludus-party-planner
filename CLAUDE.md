@@ -33,6 +33,16 @@ Every decision optimizes for **readability and maintainability over cleverness**
 
 ---
 
+## Versioning Policy
+
+This codebase is pre-1.0 and does not maintain backwards compatibility between
+versions. Database schema changes may require wiping and rebuilding the database
+rather than writing transitional data migrations or compatibility shims. When the
+full feature set is reached, this constraint will be lifted and a stable upgrade
+path will be guaranteed.
+
+---
+
 ## Tech Stack
 
 | Layer | Choice | Rationale |
@@ -287,9 +297,9 @@ Fields marked [post-v1.0] were added after the initial v1.0 release.
 ### users
 ```
 id                  INTEGER PK
-first_name          TEXT NOT NULL
-last_name           TEXT NOT NULL
-gamertag            TEXT NULLABLE
+first_name          TEXT NOT NULL DEFAULT ''
+last_name           TEXT NOT NULL DEFAULT ''
+gamertag            TEXT NULLABLE            -- universal user-facing identity
 email               TEXT NOT NULL UNIQUE
 password_hash       TEXT NULLABLE            -- NULL for OAuth-only users
 is_admin            BOOLEAN DEFAULT FALSE NOT NULL
@@ -302,7 +312,6 @@ totp_backup_codes   TEXT NULLABLE            -- JSON array of hashed single-use 
 created_at          DATETIME DEFAULT NOW NOT NULL
 updated_at          DATETIME DEFAULT NOW NOT NULL
 ```
-Migration: splits existing `name` column on first space into `first_name` and `last_name`.
 
 Relationships: `platform_accounts` (UserPlatformAccount, back_populates),
 `registrations` (backref), `verification_tokens` (backref), `reset_tokens`
@@ -310,9 +319,9 @@ Relationships: `platform_accounts` (UserPlatformAccount, back_populates),
 `suggestion_votes` (backref).
 
 Methods: `set_password`, `check_password`, `has_password` (property),
-`is_verified` (property), `name` (@property returning
-`f"{self.first_name} {self.last_name}"` for backwards compatibility in admin
-contexts).
+`is_verified` (property), `public_name` (@property returning
+`self.gamertag or self.first_name` — the identity shown to other attendees;
+full name must never appear in public contexts).
 
 ---
 
@@ -988,21 +997,27 @@ Still planned for v1.3 (not yet built):
   name tag `.stl` and multi-color nameplate `.3mf` files
 - Admin page `/admin/events/<id>/print-files`: per-attendee downloads plus bulk
   ZIP for selected attendees
-- Display name uses gamertag → first_name once those fields exist; until the
-  name-split migration lands it falls back to the first word of `users.name`
+- Display name uses gamertag → first_name (`_print_display_name` returns
+  `(user.gamertag or user.first_name).upper()`)
 - Requires build123d plus the Graduate and Liberation Sans fonts on the host;
   generation failures are logged and flashed, never crash the page
+
+**First + Last name + Gamertag Complete**
+- `users.name` replaced by `first_name` (NOT NULL), `last_name` (NOT NULL), and
+  `gamertag` (NULLABLE). Clean-break refactor — no `name` column or `name`
+  @property remains anywhere in the codebase
+- Registration, setup wizard, and Steam complete-registration forms collect all
+  three fields; OAuth new-user creation splits the provider display name into
+  first/last
+- `User.public_name` returns `gamertag or first_name`; admin views show the full
+  name via `first_name`/`last_name`; CSV export has three separate name columns
+- Admin name search and ordering query `first_name` + `last_name`
 
 ---
 
 ## Future Features Backlog
 
 ### Immediate Next Features (build before August event)
-
-- **First + Last name + Gamertag**: Split users.name into first_name and last_name.
-  Add gamertag TEXT NULLABLE. Update registration form to collect all three.
-  Gamertag used everywhere user-facing. Real name in admin only.
-  Migration splits existing name on first space.
 
 - **Potluck per-day**: Add event_date DATE NULLABLE to potluck_items. Multi-day
   events show per-day sections ("Friday Potluck", "Saturday Potluck"). Migration
@@ -1292,12 +1307,14 @@ last_name) are only shown in admin views. No exceptions. If a user has no
 gamertag set, fall back to first_name only (never full name in public contexts).
 Admins see full name in all admin routes.
 
-**First name + Last name (not full name)**
-The users table stores first_name and last_name separately. The User model has a
-`name` @property returning `f"{self.first_name} {self.last_name}"` for backwards
-compatibility in admin contexts. The registration form collects first and last name
-separately. Migration splits existing name on first space. Name search in admin
-routes searches both columns.
+**First name + Last name + Gamertag (no full-name column)**
+The users table stores `first_name`, `last_name`, and `gamertag` as separate
+columns. There is no `name` column and no `name` @property — those were removed
+in the clean-break refactor. Public identity is `User.public_name`
+(`gamertag or first_name`). Admin contexts build the full name inline from
+`first_name`/`last_name`. The registration, setup, and Steam complete-registration
+forms collect first name, last name, and an optional gamertag. Name search and
+ordering in admin routes query both `first_name` and `last_name`.
 
 **HTML for emails only. Markdown everywhere else.**
 Transactional emails (confirmation, notification, reset) and mass email use HTML
@@ -1425,11 +1442,11 @@ failed email must not prevent the registration from succeeding.
 
 **Gamertag vs name rule**
 In any template or route that displays user identity to other users (not admins),
-use `user.gamertag` or fall back to `user.first_name`. Never use `user.name` in
-public contexts. Admin routes and admin templates may use `user.name` (the full
-name property) and display both first_name and last_name. This rule applies to:
-attendee lists, seat maps, voter lists, potluck items, tournament brackets, game
-suggestion cards.
+use `user.public_name`, which returns `gamertag or first_name`. Never display a
+user's full name (`first_name` + `last_name`) in public contexts. Admin routes and
+admin templates may show the full name by combining `first_name` and `last_name`.
+This rule applies to: attendee lists, seat maps, voter lists, potluck items,
+tournament brackets, game suggestion cards.
 
 **Markdown rendering**
 Use the markdown Jinja2 filter (via mistune) for all admin-entered text fields

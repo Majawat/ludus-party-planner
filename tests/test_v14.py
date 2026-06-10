@@ -201,7 +201,7 @@ def test_navbar_shows_dropdown_when_authenticated(client, regular_user):
     _login(client, "user@example.com", "userpass123")
     resp = client.get("/")
     assert resp.status_code == 200
-    assert regular_user.name.encode() in resp.data
+    assert regular_user.public_name.encode() in resp.data
     assert b"/account" in resp.data
 
 

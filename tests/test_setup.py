@@ -44,7 +44,7 @@ def app_with_admin_no_complete():
     })
     with app.app_context():
         _db.create_all()
-        admin = User(name="Admin", email="admin@example.com", is_admin=True, email_verified_at=utcnow())
+        admin = User(first_name="Admin", last_name="User", email="admin@example.com", is_admin=True, email_verified_at=utcnow())
         admin.set_password("adminpass123")
         _db.session.add(admin)
         _db.session.commit()
@@ -106,7 +106,8 @@ def test_setup_step1_get_returns_200(fresh_client):
 
 def test_setup_step1_creates_admin_user(fresh_client, fresh_app):
     response = fresh_client.post("/setup", data={
-        "name": "Alice Admin",
+        "first_name": "Alice",
+        "last_name": "Admin",
         "email": "alice@example.com",
         "password": "securepass123",
         "confirm_password": "securepass123",
@@ -123,13 +124,14 @@ def test_setup_step1_creates_admin_user(fresh_client, fresh_app):
 
 def test_setup_step1_rejects_duplicate_email(fresh_client, fresh_app):
     with fresh_app.app_context():
-        existing = User(name="Existing", email="taken@example.com", is_admin=False)
+        existing = User(first_name="Existing", last_name="User", email="taken@example.com", is_admin=False)
         existing.set_password("pass")
         _db.session.add(existing)
         _db.session.commit()
 
     response = fresh_client.post("/setup", data={
-        "name": "New Admin",
+        "first_name": "New",
+        "last_name": "Admin",
         "email": "taken@example.com",
         "password": "securepass123",
         "confirm_password": "securepass123",
@@ -140,7 +142,8 @@ def test_setup_step1_rejects_duplicate_email(fresh_client, fresh_app):
 
 def test_setup_step1_rejects_mismatched_passwords(fresh_client):
     response = fresh_client.post("/setup", data={
-        "name": "Admin",
+        "first_name": "Admin",
+        "last_name": "User",
         "email": "admin@example.com",
         "password": "securepass123",
         "confirm_password": "different123",
@@ -156,7 +159,8 @@ def test_setup_step1_rejects_mismatched_passwords(fresh_client):
 
 def _create_admin_via_step1(client):
     client.post("/setup", data={
-        "name": "Alice Admin",
+        "first_name": "Alice",
+        "last_name": "Admin",
         "email": "alice@example.com",
         "password": "securepass123",
         "confirm_password": "securepass123",
@@ -254,7 +258,8 @@ def test_setup_complete_set_in_step2_not_in_complete_view(fresh_client, fresh_ap
     fresh_client.post(
         "/setup",
         data={
-            "name": "Admin",
+            "first_name": "Admin",
+            "last_name": "User",
             "email": "setuptest@example.com",
             "password": "password123",
             "confirm_password": "password123",

@@ -33,7 +33,9 @@ class User(UserMixin, db.Model):
     __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.Text, nullable=False)
+    first_name = db.Column(db.Text, nullable=False)
+    last_name = db.Column(db.Text, nullable=False)
+    gamertag = db.Column(db.Text, nullable=True)
     email = db.Column(db.Text, nullable=False, unique=True)
     password_hash = db.Column(db.Text, nullable=True)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
@@ -73,9 +75,8 @@ class User(UserMixin, db.Model):
     @property
     def public_name(self):
         # Identity shown to other attendees. Full name must never appear in
-        # public contexts (see CLAUDE.md "Gamertag vs name rule"); until the
-        # first_name/last_name/gamertag split lands, use the first word of name.
-        return self.name.split()[0] if self.name and self.name.split() else "Attendee"
+        # public contexts (see CLAUDE.md "Gamertag vs name rule").
+        return self.gamertag or self.first_name
 
     @property
     def has_2fa(self):

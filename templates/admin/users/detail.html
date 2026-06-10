@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% set admin = true %}
 
-{% block title %}{{ user.name }} — Users — Admin{% endblock %}
+{% block title %}{{ user.first_name ~ ' ' ~ user.last_name }} — Users — Admin{% endblock %}
 
 {% block content %}
 <div class="max-w-4xl mx-auto px-4 py-8">
@@ -10,11 +10,11 @@
     <ul>
       <li><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
       <li><a href="{{ url_for('admin.users_list') }}">Users</a></li>
-      <li>{{ user.name }}</li>
+      <li>{{ user.first_name ~ ' ' ~ user.last_name }}</li>
     </ul>
   </div>
 
-  <h1 class="text-2xl font-bold mb-6">{{ user.name }}</h1>
+  <h1 class="text-2xl font-bold mb-6">{{ user.first_name ~ ' ' ~ user.last_name }}</h1>
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
 
@@ -25,7 +25,7 @@
         <dl class="space-y-1 text-sm">
           <div class="flex gap-2">
             <dt class="opacity-60 w-32">Name</dt>
-            <dd>{{ user.name }}</dd>
+            <dd>{{ user.first_name ~ ' ' ~ user.last_name }}</dd>
           </div>
           <div class="flex gap-2">
             <dt class="opacity-60 w-32">Email</dt>
@@ -72,7 +72,7 @@
           {% endif %}
         </p>
         <form method="POST" action="{{ url_for('admin.user_toggle_admin', uid=user.id) }}"
-              onsubmit="return confirm('{% if user.is_admin %}Revoke admin access from {{ user.name }}?{% else %}Grant admin access to {{ user.name }}?{% endif %}')">
+              onsubmit="return confirm('{% if user.is_admin %}Revoke admin access from {{ user.first_name ~ ' ' ~ user.last_name }}?{% else %}Grant admin access to {{ user.first_name ~ ' ' ~ user.last_name }}?{% endif %}')">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           {% if user.is_admin %}
             <button type="submit" class="btn btn-warning btn-sm">Revoke Admin</button>

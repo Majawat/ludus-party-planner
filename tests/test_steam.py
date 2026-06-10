@@ -27,7 +27,8 @@ def steam_settings(app):
 def steam_user(app):
     """A user whose only login method is a Steam account (no password)."""
     user = User(
-        name="Steam Player",
+        first_name="Steam",
+        last_name="Player",
         email="steamplayer@example.com",
         email_verified_at=utcnow(),
     )
@@ -184,7 +185,8 @@ class TestSteamCompleteRegistration:
         resp = client.post(
             "/auth/steam/complete-registration",
             data={
-                "name": "Test Player",
+                "first_name": "Test",
+                "last_name": "Player",
                 "email": "newsteamuser@example.com",
                 "password": "password123",
                 "confirm_password": "password123",
@@ -208,7 +210,8 @@ class TestSteamCompleteRegistration:
         resp = client.post(
             "/auth/steam/complete-registration",
             data={
-                "name": "Test Player",
+                "first_name": "Test",
+                "last_name": "Player",
                 "email": regular_user.email,
                 "password": "password123",
                 "confirm_password": "password123",
@@ -225,7 +228,8 @@ class TestSteamCompleteRegistration:
         resp = client.post(
             "/auth/steam/complete-registration",
             data={
-                "name": "Test Player",
+                "first_name": "Test",
+                "last_name": "Player",
                 "email": "another@example.com",
                 "password": "password123",
                 "confirm_password": "different456",

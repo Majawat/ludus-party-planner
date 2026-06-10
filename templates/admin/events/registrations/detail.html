@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ reg.user.name }} — Registrations — {{ event.name }} — Admin{% endblock %}
+{% block title %}{{ reg.user.first_name ~ ' ' ~ reg.user.last_name }} — Registrations — {{ event.name }} — Admin{% endblock %}
 
 {% block content %}
 <div class="text-sm breadcrumbs mb-4">
@@ -9,11 +9,11 @@
     <li><a href="{{ url_for('admin.events_list') }}">Events</a></li>
     <li><a href="{{ url_for('admin.event_detail', id=event.id) }}">{{ event.name }}</a></li>
     <li><a href="{{ url_for('admin.registrations_list', id=event.id) }}">Registrations</a></li>
-    <li>{{ reg.user.name }}</li>
+    <li>{{ reg.user.first_name ~ ' ' ~ reg.user.last_name }}</li>
   </ul>
 </div>
 
-<h1 class="text-2xl font-bold mb-6">{{ reg.user.name }}</h1>
+<h1 class="text-2xl font-bold mb-6">{{ reg.user.first_name ~ ' ' ~ reg.user.last_name }}</h1>
 
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
@@ -24,7 +24,7 @@
       <dl class="space-y-1 text-sm">
         <div class="flex gap-2">
           <dt class="opacity-60 w-32">Name</dt>
-          <dd>{{ reg.user.name }}</dd>
+          <dd>{{ reg.user.first_name ~ ' ' ~ reg.user.last_name }}</dd>
         </div>
         <div class="flex gap-2">
           <dt class="opacity-60 w-32">Email</dt>
@@ -231,7 +231,7 @@
               <option value="{{ seat.id }}"
                       {% if reg.seat_id == seat.id %}selected{% endif %}
                       {% if taken_by.reg %}disabled{% endif %}>
-                {{ seat.label }}{% if taken_by.reg %} ({{ taken_by.reg.user.name }}){% endif %}
+                {{ seat.label }}{% if taken_by.reg %} ({{ taken_by.reg.user.first_name ~ ' ' ~ taken_by.reg.user.last_name }}){% endif %}
               </option>
             {% endfor %}
           </select>

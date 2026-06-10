@@ -2,7 +2,7 @@
   {% for reg in registrations %}
     <tr>
       <td>
-        <div class="font-medium">{{ reg.user.name }}</div>
+        <div class="font-medium">{{ reg.user.first_name ~ ' ' ~ reg.user.last_name }}</div>
         <div class="text-sm opacity-60">{{ reg.user.email }}</div>
       </td>
       <td>{{ reg.ticket_type.name }}</td>

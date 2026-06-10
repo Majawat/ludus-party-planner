@@ -287,7 +287,7 @@ class TestVisualSeatMap:
         _login(client, "user@example.com", "userpass123")
         resp = client.get(f"/events/{published_event.slug}/seats")
         assert resp.status_code == 200
-        assert b"Admin" in resp.data  # admin_user.name is "Admin"
+        assert b"Admin" in resp.data  # admin_user.first_name is "Admin"
 
     def test_claiming_seat_updates_registration_seat_id(
         self, client, regular_user, registration, published_event, seat
@@ -355,4 +355,4 @@ class TestAdminSeatMap:
         _login(client, "admin@example.com", "adminpass123")
         resp = client.get(f"/admin/events/{published_event.id}/seats")
         assert resp.status_code == 200
-        assert b"Regular" in resp.data  # regular_user.name is "Regular"
+        assert b"Regular" in resp.data  # regular_user.first_name is "Regular"

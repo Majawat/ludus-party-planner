@@ -58,7 +58,9 @@ _LIGHT_THEME_CHOICES = [
 
 
 class RegistrationForm(FlaskForm):
-    name = StringField("Name", validators=[DataRequired(), Length(max=120)])
+    first_name = StringField("First Name", validators=[DataRequired(), Length(max=60)])
+    last_name = StringField("Last Name", validators=[DataRequired(), Length(max=60)])
+    gamertag = StringField("Gamertag", validators=[Optional(), Length(max=60)])
     email = StringField("Email", validators=[DataRequired(), Email()])
     password = PasswordField("Password", validators=[DataRequired(), Length(min=8)])
     confirm_password = PasswordField(
@@ -189,7 +191,9 @@ class AdminEmailForm(FlaskForm):
 
 
 class SetupAdminForm(FlaskForm):
-    name = StringField("Name", validators=[DataRequired(), Length(max=120)])
+    first_name = StringField("First Name", validators=[DataRequired(), Length(max=60)])
+    last_name = StringField("Last Name", validators=[DataRequired(), Length(max=60)])
+    gamertag = StringField("Gamertag", validators=[Optional(), Length(max=60)])
     email = StringField("Email", validators=[DataRequired(), Email()])
     password = PasswordField("Password", validators=[DataRequired(), Length(min=8)])
     confirm_password = PasswordField(
@@ -340,7 +344,9 @@ class OAuthConfirmLinkForm(FlaskForm):
 
 
 class SteamCompleteRegistrationForm(FlaskForm):
-    name = StringField("Name", validators=[DataRequired(), Length(max=120)])
+    first_name = StringField("First Name", validators=[DataRequired(), Length(max=60)])
+    last_name = StringField("Last Name", validators=[DataRequired(), Length(max=60)])
+    gamertag = StringField("Gamertag", validators=[Optional(), Length(max=60)])
     email = StringField("Email", validators=[DataRequired(), Email()])
     password = PasswordField("Password", validators=[DataRequired(), Length(min=8)])
     confirm_password = PasswordField(

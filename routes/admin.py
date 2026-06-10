@@ -395,17 +395,8 @@ def _get_registration_or_404(event, rid):
 
 
 def _print_display_name(user):
-    """Gamertag if set, otherwise first name. Always uppercase.
-
-    The gamertag/first_name attributes don't exist until the name-split
-    migration lands; until then fall back to user.public_name (first word
-    of the full name) so files aren't all generated as "ATTENDEE".
-    """
-    return (
-        getattr(user, "gamertag", None)
-        or getattr(user, "first_name", None)
-        or user.public_name
-    ).strip().upper()
+    """Gamertag if set, otherwise first name. Always uppercase."""
+    return (user.gamertag or user.first_name).strip().upper()
 
 
 def _print_filename(display_name):
@@ -445,7 +436,11 @@ def registrations_list(id):
     if q:
         like = f"%{q}%"
         query = query.where(
-            db.or_(User.name.ilike(like), User.email.ilike(like))
+            db.or_(
+                User.first_name.ilike(like),
+                User.last_name.ilike(like),
+                User.email.ilike(like),
+            )
         )
 
     registrations = db.session.execute(query).scalars().all()
@@ -507,7 +502,7 @@ def registrations_export(id):
         db.select(Registration)
         .where(Registration.event_id == event.id)
         .join(Registration.user)
-        .order_by(User.name)
+        .order_by(User.last_name, User.first_name)
     ).scalars().all()
 
     questions = event.questions  # ordered by display_order via relationship
@@ -515,15 +510,18 @@ def registrations_export(id):
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
-        "Name", "Email", "Ticket Type", "Status", "Payment Status",
-        "Payment Method", "Paid At", "Checked In At", "Needs Loaner",
-        "Emergency Contact Name", "Emergency Contact Phone", "Registered At",
+        "First Name", "Last Name", "Gamertag", "Email", "Ticket Type", "Status",
+        "Payment Status", "Payment Method", "Paid At", "Checked In At",
+        "Needs Loaner", "Emergency Contact Name", "Emergency Contact Phone",
+        "Registered At",
         *[q.question_text for q in questions],
     ])
     for reg in registrations:
         answers_by_qid = {ans.question_id: ans.answer for ans in reg.answers}
         writer.writerow([
-            reg.user.name,
+            reg.user.first_name,
+            reg.user.last_name,
+            reg.user.gamertag or "",
             reg.user.email,
             reg.ticket_type.name,
             reg.status,
@@ -797,7 +795,13 @@ def users_list():
     query = db.select(User).order_by(User.created_at.desc())
     if q:
         like = f"%{q}%"
-        query = query.where(db.or_(User.name.ilike(like), User.email.ilike(like)))
+        query = query.where(
+            db.or_(
+                User.first_name.ilike(like),
+                User.last_name.ilike(like),
+                User.email.ilike(like),
+            )
+        )
     users = db.session.execute(query).scalars().all()
 
     if request.headers.get("HX-Request"):
@@ -842,7 +846,7 @@ def user_toggle_admin(uid):
     log("user.admin_granted" if will_be_admin else "user.admin_revoked", "user", user.id)
     db.session.commit()
     action = "granted admin access" if user.is_admin else "had admin access revoked"
-    flash(f"{user.name} {action}.", "success")
+    flash(f"{user.first_name} {user.last_name} {action}.", "success")
     return redirect(url_for("admin.user_detail", uid=uid))
 
 
@@ -1122,9 +1126,15 @@ def checkin_search(id):
             db.select(Registration)
             .where(Registration.event_id == event.id)
             .join(Registration.user)
-            .where(db.or_(User.name.ilike(like), User.email.ilike(like)))
+            .where(
+                db.or_(
+                    User.first_name.ilike(like),
+                    User.last_name.ilike(like),
+                    User.email.ilike(like),
+                )
+            )
             .where(Registration.status != "cancelled")
-            .order_by(User.name)
+            .order_by(User.last_name, User.first_name)
         )
         .scalars()
         .all()
