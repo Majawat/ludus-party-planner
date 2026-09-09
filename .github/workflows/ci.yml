@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref (e.g. rapid pushes to a PR).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: pytest (Python 3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # build123d (3D print-file generation) links against OpenGL and needs
+      # the same fonts the Dockerfile installs, or the print-file tests error.
+      - name: Install system libraries and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl1 libglu1-mesa libxrender1 libxext6 libsm6 \
+            fontconfig fonts-liberation
+          sudo mkdir -p /usr/share/fonts/truetype/graduate
+          sudo wget -q -O /usr/share/fonts/truetype/graduate/Graduate-Regular.ttf \
+            "https://github.com/google/fonts/raw/main/ofl/graduate/Graduate-Regular.ttf"
+          sudo fc-cache -f
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest -q
