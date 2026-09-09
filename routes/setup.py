@@ -16,10 +16,18 @@ def _setup_is_complete():
 def step1():
     if _setup_is_complete():
         return redirect(url_for("public.index"))
+    # The first admin already exists but setup isn't finished: resume at step 2.
+    # Never re-expose first-admin creation (otherwise any anonymous visitor could
+    # create additional admins during the open setup window).
+    if User.query.filter_by(is_admin=True).first() is not None:
+        return redirect(url_for("setup.step2"))
 
     form = SetupAdminForm()
     if form.validate_on_submit():
-        if User.query.filter_by(email=form.email.data).first():
+        # Store the email lowercased to match login, which looks users up by
+        # email.lower(); a mixed-case setup email would otherwise lock the admin out.
+        email = form.email.data.lower()
+        if User.query.filter_by(email=email).first():
             flash("An account with that email already exists.", "error")
             return render_template("setup/step1.html", form=form)
 
@@ -27,7 +35,7 @@ def step1():
             first_name=form.first_name.data,
             last_name=form.last_name.data,
             gamertag=form.gamertag.data or None,
-            email=form.email.data,
+            email=email,
             is_admin=True,
             email_verified_at=utcnow(),
         )

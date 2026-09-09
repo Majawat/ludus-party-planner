@@ -293,3 +293,35 @@ def test_setup_complete_set_in_step2_not_in_complete_view(fresh_client, fresh_ap
         assert SiteSettings.get("setup_complete") == "true", (
             "setup_complete must be 'true' after step2 POST"
         )
+
+
+# ---------------------------------------------------------------------------
+# Email normalization + open-admin-window guard (2026-09 review)
+# ---------------------------------------------------------------------------
+
+def test_setup_admin_email_is_lowercased(fresh_client, fresh_app):
+    """Login looks users up by email.lower(); the setup admin email must be
+    stored lowercased or a mixed-case entry would lock the only admin out."""
+    resp = fresh_client.post("/setup", data={
+        "first_name": "Admin", "last_name": "Boss", "gamertag": "",
+        "email": "MixedCase@Example.COM", "password": "adminpass123",
+        "confirm_password": "adminpass123", "submit": "Create Admin Account",
+    }, follow_redirects=False)
+    assert resp.status_code == 302
+    with fresh_app.app_context():
+        u = User.query.filter_by(is_admin=True).first()
+        assert u is not None and u.email == "mixedcase@example.com"
+
+
+def test_step1_resumes_at_step2_when_admin_exists(client_no_complete, app_with_admin_no_complete):
+    """Once the first admin exists, /setup must not re-expose admin creation."""
+    resp = client_no_complete.get("/setup", follow_redirects=False)
+    assert resp.status_code == 302 and "/setup/site" in resp.headers["Location"]
+    client_no_complete.post("/setup", data={
+        "first_name": "Sneaky", "last_name": "Admin", "gamertag": "",
+        "email": "sneaky@example.com", "password": "password123",
+        "confirm_password": "password123", "submit": "Create Admin Account",
+    }, follow_redirects=False)
+    with app_with_admin_no_complete.app_context():
+        assert User.query.filter_by(email="sneaky@example.com").first() is None
+        assert User.query.filter_by(is_admin=True).count() == 1
