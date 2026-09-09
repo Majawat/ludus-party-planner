@@ -97,6 +97,25 @@ def _get_configured_providers():
     return providers
 
 
+def _login_or_challenge_2fa(user, remember=False):
+    """Log `user` in, unless they have TOTP 2FA enabled — then stage the pending
+    2FA session state and return a redirect to the verification challenge instead
+    of completing the login. Returns the redirect response when 2FA is required,
+    otherwise None (the caller proceeds with its normal post-login flow).
+
+    Every login entry point (password, passkey, OAuth, Steam) must route through
+    the 2FA challenge. OAuth and Steam callbacks previously called login_user
+    directly, silently bypassing 2FA for any user who had it enabled.
+    """
+    if user.has_2fa:
+        session.pop("2fa_attempts", None)
+        session["pending_2fa_user_id"] = user.id
+        session["pending_2fa_remember"] = remember
+        return redirect(url_for("auth.verify_2fa"))
+    login_user(user, remember=remember)
+    return None
+
+
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
     if current_user.is_authenticated:
@@ -311,8 +330,8 @@ def oauth_callback(provider):
         platform=provider, platform_user_id=provider_user_id
     ).first()
     if platform_acct:
-        login_user(platform_acct.user)
-        return redirect(url_for("account.dashboard"))
+        challenge = _login_or_challenge_2fa(platform_acct.user)
+        return challenge or redirect(url_for("account.dashboard"))
 
     # 2. Email matches existing user → ask to confirm link
     if email:
@@ -400,7 +419,9 @@ def oauth_confirm_link(provider):
     )
     db.session.add(acct)
     db.session.commit()
-    login_user(user)
+    challenge = _login_or_challenge_2fa(user)
+    if challenge:
+        return challenge
     flash(f"{provider.capitalize()} account linked to your existing account.", "success")
     return redirect(url_for("account.dashboard"))
 
@@ -483,8 +504,8 @@ def steam_callback():
         platform="steam", platform_user_id=steam64_id
     ).first()
     if platform_acct:
-        login_user(platform_acct.user)
-        return redirect(url_for("account.dashboard"))
+        challenge = _login_or_challenge_2fa(platform_acct.user)
+        return challenge or redirect(url_for("account.dashboard"))
 
     session["steam_pending"] = {"steam64_id": steam64_id, "persona_name": persona_name}
     return redirect(url_for("auth.steam_complete_registration"))

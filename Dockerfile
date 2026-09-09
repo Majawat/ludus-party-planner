@@ -5,6 +5,11 @@ RUN apt-get update && apt-get install -y \
     wget \
     fontconfig \
     fonts-liberation \
+    libgl1 \
+    libglu1-mesa \
+    libxrender1 \
+    libxext6 \
+    libsm6 \
     && rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /usr/share/fonts/truetype/graduate && \
     wget -q -O \
@@ -13,5 +18,9 @@ RUN mkdir -p /usr/share/fonts/truetype/graduate && \
     && fc-cache -fv
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
+RUN chmod +x /app/docker-entrypoint.sh
+ENV FLASK_APP=app
 EXPOSE 8000
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:create_app()"]
+# The entrypoint applies DB migrations (idempotent) before starting gunicorn, so a
+# fresh deployment comes up with a valid schema instead of 500ing on missing tables.
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
