@@ -1070,10 +1070,14 @@ def security_backup_codes_display():
 @account_bp.route("/account/security/disable", methods=["POST"])
 @login_required
 def security_disable():
-    password = request.form.get("password", "")
-    if not current_user.check_password(password):
-        flash("Incorrect password.", "error")
-        return redirect(url_for("account.security"))
+    # OAuth/passkey-only users have no password to re-enter; requiring one would
+    # permanently lock them out of ever disabling 2FA. Re-verify only when a
+    # password exists — otherwise the active login session is the authorization.
+    if current_user.has_password:
+        password = request.form.get("password", "")
+        if not current_user.check_password(password):
+            flash("Incorrect password.", "error")
+            return redirect(url_for("account.security"))
     current_user.totp_secret = None
     current_user.totp_backup_codes = None
     db.session.commit()
@@ -1087,10 +1091,12 @@ def security_regenerate_backup_codes():
     if not current_user.has_2fa:
         flash("Two-factor authentication is not enabled.", "error")
         return redirect(url_for("account.security"))
-    password = request.form.get("password", "")
-    if not current_user.check_password(password):
-        flash("Incorrect password.", "error")
-        return redirect(url_for("account.security"))
+    # See security_disable: passwordless users can't re-enter a password.
+    if current_user.has_password:
+        password = request.form.get("password", "")
+        if not current_user.check_password(password):
+            flash("Incorrect password.", "error")
+            return redirect(url_for("account.security"))
     raw_codes, hashed_codes = generate_backup_codes()
     current_user.totp_backup_codes = json.dumps(hashed_codes)
     db.session.commit()
