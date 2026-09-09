@@ -81,6 +81,26 @@ class TestApplyMailSettings:
             _apply_mail_settings()
             assert app.config["MAIL_SUPPRESS_SEND"] is False
 
+    def test_updates_live_mail_state_not_just_config(self, app):
+        # Flask-Mail uses the state in app.extensions["mail"], not app.config, at
+        # send time. The settings must reach the state or send() uses stale defaults.
+        from mailer import _apply_mail_settings
+        with app.app_context():
+            SiteSettings.set("mail_server", "smtp.live.test")
+            SiteSettings.set("mail_port", "465")
+            _apply_mail_settings()
+            state = app.extensions["mail"]
+            assert state.server == "smtp.live.test"
+            assert state.port == 465
+            assert state.suppress is False
+
+    def test_live_mail_state_suppressed_when_unconfigured(self, app):
+        from mailer import _apply_mail_settings
+        with app.app_context():
+            SiteSettings.set("mail_server", "")
+            _apply_mail_settings()
+            assert app.extensions["mail"].suppress is True
+
     def test_handles_invalid_port_gracefully(self, app):
         from mailer import _apply_mail_settings
         with app.app_context():
@@ -104,6 +124,23 @@ class TestApplyMailSettings:
             assert mock_apply.called
 
 
+class TestRegistrationSurvivesMailFailure:
+    def test_register_does_not_500_when_mail_send_fails(self, client, app):
+        # Mail "configured" but unreachable → send raises. Registration must still
+        # succeed (account committed, best-effort email) rather than 500.
+        with app.app_context():
+            SiteSettings.set("mail_server", "smtp.invalid.nonexistent.example")
+            SiteSettings.set("mail_default_sender", "noreply@example.com")
+        resp = client.post("/register", data={
+            "first_name": "Reg", "last_name": "User", "gamertag": "",
+            "email": "survives@example.com", "password": "password123",
+            "confirm_password": "password123", "website": "",
+        }, follow_redirects=False)
+        assert resp.status_code == 302
+        with app.app_context():
+            assert User.query.filter_by(email="survives@example.com").first() is not None
+
+
 class TestTestEmailRoute:
     def test_returns_error_when_mail_unconfigured(self, client, admin_user):
         _login(client, "admin@example.com", "adminpass123")
@@ -120,7 +157,10 @@ class TestTestEmailRoute:
             SiteSettings.set("mail_server", "smtp.test.com")
             SiteSettings.set("contact_email", "admin@example.com")
             SiteSettings.set("mail_default_sender", "test@example.com")
-        response = client.post("/admin/settings/test-email", follow_redirects=False)
+        # Mail now actually uses the configured server, so mock the SMTP transport
+        # (there is no real server in CI) and assert the route reports success.
+        with patch("smtplib.SMTP"):
+            response = client.post("/admin/settings/test-email", follow_redirects=False)
         assert response.status_code == 302
         with client.session_transaction() as sess:
             flashes = sess.get("_flashes", [])

@@ -21,7 +21,9 @@ def _apply_mail_settings():
             port = 587
         username = SiteSettings.get("mail_username", "") or None
         password = SiteSettings.get("mail_password", "") or None
-        sender = SiteSettings.get("mail_default_sender", "")
+        # Fall back to any sender already in app.config when the DB has none, so
+        # we never clobber a configured default sender with an empty string.
+        sender = SiteSettings.get("mail_default_sender") or current_app.config.get("MAIL_DEFAULT_SENDER", "")
         current_app.config.update({
             "MAIL_SERVER": SiteSettings.get("mail_server", ""),
             "MAIL_PORT": port,
@@ -32,8 +34,28 @@ def _apply_mail_settings():
             "MAIL_SUPPRESS_SEND": not bool(
                 SiteSettings.get("mail_server", "").strip()),
         })
+        # Flask-Mail snapshots config into app.extensions["mail"] at init_app time
+        # and ignores later config changes, so updating app.config alone is not
+        # enough — send() would keep using the startup defaults (127.0.0.1:25,
+        # suppress off), which makes a mail-less install 500 on registration and
+        # means admin-configured SMTP never takes effect. Push the current values
+        # onto the existing state IN PLACE (not a fresh init_app, which would swap
+        # the object and break record_messages()/outbox used in tests).
+        state = current_app.extensions.get("mail")
+        if state is not None:
+            cfg = current_app.config
+            state.server = cfg["MAIL_SERVER"]
+            state.port = cfg["MAIL_PORT"]
+            state.use_tls = cfg["MAIL_USE_TLS"]
+            state.username = cfg["MAIL_USERNAME"]
+            state.password = cfg["MAIL_PASSWORD"]
+            state.default_sender = cfg["MAIL_DEFAULT_SENDER"]
+            state.suppress = cfg["MAIL_SUPPRESS_SEND"]
     except Exception as e:
         current_app.config["MAIL_SUPPRESS_SEND"] = True
+        state = current_app.extensions.get("mail")
+        if state is not None:
+            state.suppress = True
         current_app.logger.warning(f"_apply_mail_settings failed: {e}")
 
 
