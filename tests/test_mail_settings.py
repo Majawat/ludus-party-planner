@@ -157,7 +157,10 @@ class TestTestEmailRoute:
             SiteSettings.set("mail_server", "smtp.test.com")
             SiteSettings.set("contact_email", "admin@example.com")
             SiteSettings.set("mail_default_sender", "test@example.com")
-        response = client.post("/admin/settings/test-email", follow_redirects=False)
+        # Mail now actually uses the configured server, so mock the SMTP transport
+        # (there is no real server in CI) and assert the route reports success.
+        with patch("smtplib.SMTP"):
+            response = client.post("/admin/settings/test-email", follow_redirects=False)
         assert response.status_code == 302
         with client.session_transaction() as sess:
             flashes = sess.get("_flashes", [])

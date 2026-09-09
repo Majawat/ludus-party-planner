@@ -21,7 +21,9 @@ def _apply_mail_settings():
             port = 587
         username = SiteSettings.get("mail_username", "") or None
         password = SiteSettings.get("mail_password", "") or None
-        sender = SiteSettings.get("mail_default_sender", "")
+        # Fall back to any sender already in app.config when the DB has none, so
+        # we never clobber a configured default sender with an empty string.
+        sender = SiteSettings.get("mail_default_sender") or current_app.config.get("MAIL_DEFAULT_SENDER", "")
         current_app.config.update({
             "MAIL_SERVER": SiteSettings.get("mail_server", ""),
             "MAIL_PORT": port,
