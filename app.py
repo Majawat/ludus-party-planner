@@ -5,6 +5,7 @@ from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask_mail import Mail
 from dotenv import load_dotenv
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from extensions import csrf, oauth
 from models import db, User, SiteSettings, Event, TicketType, get_allowed_themes
@@ -34,6 +35,25 @@ def create_app(test_config=None):
             "SECRET_KEY environment variable is required. "
             "Generate one with: python3 -c \"import secrets; print(secrets.token_hex(32))\""
         )
+
+    # Behind a TLS-terminating reverse proxy (the documented deployment), trust one
+    # proxy hop so url_for(..., _external=True) builds https URLs — OAuth redirect_uri,
+    # Stripe/PayPal return URLs — and request.remote_addr is the real client IP for the
+    # activity log. A no-op in dev/tests, where no X-Forwarded-* headers are sent.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+
+    # Cookie hardening. Secure cookies are required over HTTPS but would break the
+    # plain-http dev server and the test client, so they default off under debug/testing.
+    # Override explicitly with SESSION_COOKIE_SECURE=true|false.
+    app.config.setdefault("SESSION_COOKIE_HTTPONLY", True)
+    app.config.setdefault("SESSION_COOKIE_SAMESITE", "Lax")
+    _secure_env = os.environ.get("SESSION_COOKIE_SECURE")
+    if _secure_env is not None:
+        secure_cookies = _secure_env.strip().lower() == "true"
+    else:
+        secure_cookies = not (app.debug or app.testing)
+    app.config["SESSION_COOKIE_SECURE"] = secure_cookies
+    app.config["REMEMBER_COOKIE_SECURE"] = secure_cookies
 
     # Flask-SQLAlchemy 3.x resolves relative SQLite paths to the instance folder.
     # Convert relative paths to absolute relative to app.root_path instead, so the

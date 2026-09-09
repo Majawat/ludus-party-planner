@@ -406,6 +406,17 @@ def _print_filename(display_name):
     return cleaned or "attendee"
 
 
+def _csv_safe(value):
+    """Neutralize CSV/formula injection in the registrations export. A cell whose
+    first character a spreadsheet would treat as a formula (=, +, -, @) or a
+    leading tab/CR is prefixed with a single quote. Attendee-controlled fields
+    (names, gamertag, custom-question answers) flow into this export unescaped."""
+    s = "" if value is None else str(value)
+    if s[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + s
+    return s
+
+
 @admin_bp.route("/events/<int:id>/registrations")
 def registrations_list(id):
     event = _get_event_or_404(id)
@@ -514,11 +525,11 @@ def registrations_export(id):
         "Payment Status", "Payment Method", "Paid At", "Checked In At",
         "Needs Loaner", "Emergency Contact Name", "Emergency Contact Phone",
         "Registered At",
-        *[q.question_text for q in questions],
+        *[_csv_safe(q.question_text) for q in questions],
     ])
     for reg in registrations:
         answers_by_qid = {ans.question_id: ans.answer for ans in reg.answers}
-        writer.writerow([
+        writer.writerow([_csv_safe(v) for v in [
             reg.user.first_name,
             reg.user.last_name,
             reg.user.gamertag or "",
@@ -534,7 +545,7 @@ def registrations_export(id):
             reg.emergency_contact_phone or "",
             reg.created_at.strftime("%Y-%m-%d %H:%M"),
             *[answers_by_qid.get(q.id, "") or "" for q in questions],
-        ])
+        ]])
 
     filename = f"{event.slug}-registrations.csv"
     return Response(
