@@ -118,6 +118,9 @@ class EventForm(FlaskForm):
     registration_closes_at = DateTimeLocalField(
         "Registration Closes At", format="%Y-%m-%dT%H:%M", validators=[Optional()]
     )
+    collect_emergency_contacts = BooleanField(
+        "Collect emergency contact information from attendees"
+    )
 
 
 class TicketTypeForm(FlaskForm):
@@ -358,6 +361,15 @@ class SteamCompleteRegistrationForm(FlaskForm):
 
 class GameSuggestionForm(FlaskForm):
     game_name = StringField("Game Name", validators=[DataRequired(), Length(max=300)])
+    play_style = SelectField(
+        "Play Style",
+        choices=[("", "—"), ("co-op", "Co-op"), ("competitive", "Competitive"), ("both", "Both")],
+        validators=[Optional()],
+    )
+    system_requirements = StringField(
+        "System Requirements", validators=[Optional(), Length(max=200)]
+    )
+    notes = TextAreaField("Notes", validators=[Optional(), Length(max=1000)])
     suggested_datetime = DateTimeLocalField(
         "Suggested Play Time", format="%Y-%m-%dT%H:%M", validators=[Optional()]
     )

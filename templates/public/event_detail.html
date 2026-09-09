@@ -147,14 +147,20 @@
     <div class="card bg-base-200 shadow mb-8">
       <div class="card-body">
         <h2 class="card-title text-lg mb-3">Potluck</h2>
-        <div class="flex flex-wrap gap-2">
-          {% for item in potluck_items %}
-            <div class="badge badge-outline gap-1">
-              <span class="font-semibold">{{ item.registration.user.public_name }}:</span>
-              {{ item.description }}
-            </div>
-          {% endfor %}
-        </div>
+        {# Group by day for multi-day events; single-day items (event_date=None) render ungrouped. #}
+        {% for day, items in potluck_items | groupby('event_date') %}
+          {% if day %}
+            <h3 class="font-semibold text-sm mt-3 mb-1">{{ day.strftime('%A, %b %-d') }}</h3>
+          {% endif %}
+          <div class="flex flex-wrap gap-2 {% if day %}mb-1{% endif %}">
+            {% for item in items %}
+              <div class="badge badge-outline gap-1">
+                <span class="font-semibold">{{ item.registration.user.public_name }}:</span>
+                {{ item.description }}
+              </div>
+            {% endfor %}
+          </div>
+        {% endfor %}
       </div>
     </div>
   {% endif %}
@@ -218,6 +224,10 @@
                   </div>
                   <div class="flex items-center gap-2 flex-shrink-0">
                     <span class="badge badge-ghost badge-sm">{{ vote_count }} vote{{ 's' if vote_count != 1 else '' }}</span>
+                    <button type="button" class="btn btn-xs btn-ghost"
+                            hx-get="{{ url_for('public.suggestion_detail', slug=event.slug, sid=suggestion.id) }}"
+                            hx-target="#suggestion-modal-body"
+                            onclick="document.getElementById('suggestion-modal').showModal()">Details</button>
                     {% if can_suggest %}
                       <form method="POST"
                             action="{{ url_for('public.suggestion_vote', slug=event.slug, sid=suggestion.id) }}">
@@ -281,11 +291,45 @@
                        id="suggest-game-name") }}
                   </div>
                   {{ suggestion_form.suggested_datetime(class="input input-bordered input-sm") }}
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+                  <div class="form-control">
+                    {{ suggestion_form.play_style.label(class="label label-text text-xs py-0") }}
+                    {{ suggestion_form.play_style(class="select select-bordered select-sm w-full") }}
+                  </div>
+                  <div class="form-control sm:col-span-2">
+                    {{ suggestion_form.system_requirements.label(class="label label-text text-xs py-0") }}
+                    {{ suggestion_form.system_requirements(class="input input-bordered input-sm w-full",
+                       placeholder="e.g. Low / Requires controller") }}
+                  </div>
+                </div>
+                <div class="form-control mt-2">
+                  {{ suggestion_form.notes.label(class="label label-text text-xs py-0") }}
+                  {{ suggestion_form.notes(class="textarea textarea-bordered textarea-sm w-full", rows="2",
+                     placeholder="Anything else the group should know") }}
+                </div>
+
+                <div class="mt-3">
                   {{ suggestion_form.submit(class="btn btn-primary btn-sm") }}
                 </div>
               </form>
             </div>
           </details>
+        {% endif %}
+
+        {# Shared detail modal — body is HTMX-loaded from the Details button #}
+        <dialog id="suggestion-modal" class="modal">
+          <div class="modal-box max-w-lg">
+            <div id="suggestion-modal-body">
+              <div class="flex justify-center py-8"><span class="loading loading-spinner"></span></div>
+            </div>
+            <div class="modal-action">
+              <form method="dialog"><button class="btn btn-sm">Close</button></form>
+            </div>
+          </div>
+          <form method="dialog" class="modal-backdrop"><button>close</button></form>
+        </dialog>
 
           <script>
           function selectGame(name, bggId, steamId) {
@@ -297,7 +341,6 @@
             document.getElementById('game-search-input').value = '';
           }
           </script>
-        {% endif %}
 
       </div>
     </div>

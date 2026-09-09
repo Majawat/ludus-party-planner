@@ -214,6 +214,16 @@
           {% endfor %}
         </div>
 
+        <div class="form-control mt-4">
+          <label class="label cursor-pointer justify-start gap-4">
+            {{ form.collect_emergency_contacts(class="toggle toggle-primary") }}
+            <div>
+              <span class="label-text font-semibold">{{ form.collect_emergency_contacts.label.text }}</span>
+              <p class="text-xs text-base-content/60">Shows emergency contact name/phone fields on the registration form.</p>
+            </div>
+          </label>
+        </div>
+
       </div>
     </div>
 

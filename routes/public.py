@@ -74,7 +74,7 @@ def event_detail(slug):
             .where(PotluckItem.event_id == event.id)
             .join(PotluckItem.registration)
             .where(Registration.status != "cancelled")
-            .order_by(PotluckItem.created_at)
+            .order_by(PotluckItem.event_date, PotluckItem.created_at)
         )
         .scalars()
         .all()
@@ -201,6 +201,9 @@ def suggestion_add(slug):
                 game_year=year,
                 game_min_players=min_p,
                 game_max_players=max_p,
+                play_style=form.play_style.data or None,
+                system_requirements=form.system_requirements.data or None,
+                notes=form.notes.data or None,
             )
             db.session.add(suggestion)
             db.session.commit()
@@ -245,6 +248,26 @@ def suggestion_vote(slug, sid):
         db.session.commit()
 
     return redirect(url_for("public.event_detail", slug=slug))
+
+
+@public_bp.route("/events/<slug>/suggestions/<int:sid>/detail")
+def suggestion_detail(slug, sid):
+    # HTMX-loaded modal body with the full game record + voter gamertags. Public
+    # (same visibility as the suggestions list on the event page).
+    event = db.session.execute(
+        select(Event).filter_by(slug=slug, status="published")
+    ).scalar_one_or_none()
+    if event is None:
+        abort(404)
+    suggestion = db.session.get(GameSuggestion, sid)
+    if suggestion is None or suggestion.event_id != event.id:
+        abort(404)
+    voters = [v.voter.public_name for v in suggestion.votes]
+    itad_enabled = bool(SiteSettings.get("itad_api_key", "").strip())
+    return render_template(
+        "public/_suggestion_detail.html",
+        suggestion=suggestion, voters=voters, itad_enabled=itad_enabled, event=event,
+    )
 
 
 @public_bp.route("/games/itad/<int:steam_app_id>")

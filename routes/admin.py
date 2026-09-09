@@ -166,6 +166,7 @@ def event_new():
             seating_enabled=form.seating_enabled.data,
             registration_open=form.registration_open.data,
             registration_closes_at=form.registration_closes_at.data or None,
+            collect_emergency_contacts=form.collect_emergency_contacts.data,
         )
         db.session.add(event)
         db.session.flush()
@@ -208,6 +209,7 @@ def event_edit(id):
         event.seating_enabled = form.seating_enabled.data
         event.registration_open = form.registration_open.data
         event.registration_closes_at = form.registration_closes_at.data or None
+        event.collect_emergency_contacts = form.collect_emergency_contacts.data
         log("event.updated", "event", event.id, {"name": event.name})
         db.session.commit()
         flash("Event updated.", "success")
@@ -236,6 +238,7 @@ def event_clone(id):
         seating_enabled=original.seating_enabled,
         registration_open=original.registration_open,
         registration_closes_at=original.registration_closes_at,
+        collect_emergency_contacts=original.collect_emergency_contacts,
     )
     db.session.add(clone)
     db.session.flush()  # get clone.id before copying ticket types

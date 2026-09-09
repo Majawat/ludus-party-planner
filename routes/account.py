@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 import requests as http_requests
@@ -421,6 +422,14 @@ def my_registration(slug):
         p.tournament_id for p in registration.tournament_participations
     }
 
+    # Days of a multi-day event, for the per-day potluck selector (empty = single day).
+    potluck_days = []
+    if event.start_datetime.date() != event.end_datetime.date():
+        d = event.start_datetime.date()
+        while d <= event.end_datetime.date():
+            potluck_days.append(d)
+            d += timedelta(days=1)
+
     return render_template(
         "account/my_registration.html",
         event=event,
@@ -432,6 +441,7 @@ def my_registration(slug):
         paypal_checkout_url=paypal_checkout_url,
         tournaments=tournaments,
         participant_tournament_ids=participant_tournament_ids,
+        potluck_days=potluck_days,
     )
 
 
@@ -835,6 +845,20 @@ def update_loaner(slug):
     return redirect(url_for("account.my_registration", slug=slug))
 
 
+def _potluck_event_date(raw, event):
+    """Parse a YYYY-MM-DD day selection for a multi-day event, keeping it only if
+    it falls within the event's date span; otherwise None (single-day/unspecified)."""
+    if not raw:
+        return None
+    try:
+        d = datetime.strptime(raw.strip(), "%Y-%m-%d").date()
+    except (ValueError, AttributeError):
+        return None
+    if event.start_datetime.date() <= d <= event.end_datetime.date():
+        return d
+    return None
+
+
 @account_bp.route("/events/<slug>/my-registration/potluck/add", methods=["POST"])
 @login_required
 def potluck_add(slug):
@@ -856,6 +880,7 @@ def potluck_add(slug):
             event_id=event.id,
             registration_id=reg.id,
             description=form.description.data,
+            event_date=_potluck_event_date(request.form.get("event_date"), event),
         )
         db.session.add(item)
         db.session.commit()

@@ -50,9 +50,9 @@
           </div>
         {% endif %}
 
-        {% if has_lodging_tickets %}
+        {% if event.collect_emergency_contacts %}
           <div class="divider">Emergency Contact</div>
-          <p class="text-sm text-base-content/70 mb-4">Required for overnight ticket holders.</p>
+          <p class="text-sm text-base-content/70 mb-4">In case of an emergency during the event.</p>
 
           <div class="form-control mb-4">
             {{ form.emergency_contact_name.label(class="label") }}
