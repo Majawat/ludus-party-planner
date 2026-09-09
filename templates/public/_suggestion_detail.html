@@ -1,0 +1,50 @@
+{# HTMX-loaded body for the game-suggestion detail modal on the event page. #}
+<h3 class="font-bold text-lg mb-2">
+  {{ suggestion.game_name }}
+  {% if suggestion.game_year %}<span class="text-sm font-normal text-base-content/50">({{ suggestion.game_year }})</span>{% endif %}
+</h3>
+
+{% if suggestion.game_image_url %}
+  <img src="{{ suggestion.game_image_url }}" alt="{{ suggestion.game_name }}" class="rounded mb-3 max-h-40">
+{% endif %}
+
+<div class="flex flex-wrap gap-2 mb-3">
+  {% if suggestion.game_min_players and suggestion.game_max_players %}
+    <span class="badge badge-ghost">{{ suggestion.game_min_players }}–{{ suggestion.game_max_players }} players</span>
+  {% endif %}
+  {% if suggestion.play_style %}<span class="badge badge-ghost capitalize">{{ suggestion.play_style }}</span>{% endif %}
+  {% if suggestion.system_requirements %}<span class="badge badge-ghost">{{ suggestion.system_requirements }}</span>{% endif %}
+</div>
+
+{% if suggestion.game_description %}
+  <p class="text-sm text-base-content/80 mb-3">{{ suggestion.game_description }}</p>
+{% endif %}
+
+{% if suggestion.notes %}
+  <p class="text-sm mb-3"><span class="font-semibold">Notes:</span> {{ suggestion.notes }}</p>
+{% endif %}
+
+{% if suggestion.steam_app_id and itad_enabled %}
+  <div class="mb-3" hx-get="{{ url_for('public.itad_prices', steam_app_id=suggestion.steam_app_id) }}"
+       hx-trigger="load" hx-swap="innerHTML">
+    <span class="loading loading-dots loading-xs"></span>
+  </div>
+{% endif %}
+
+<div class="flex gap-3 text-sm mb-3">
+  {% if suggestion.bgg_id %}
+    <a href="https://boardgamegeek.com/boardgame/{{ suggestion.bgg_id }}" target="_blank" rel="noopener" class="link">BGG</a>
+  {% endif %}
+  {% if suggestion.steam_app_id %}
+    <a href="https://store.steampowered.com/app/{{ suggestion.steam_app_id }}" target="_blank" rel="noopener" class="link">Steam</a>
+  {% endif %}
+</div>
+
+<div class="text-sm text-base-content/70">
+  <span class="font-semibold">Suggested by:</span> {{ suggestion.suggester.public_name }}
+</div>
+{% if voters %}
+  <div class="text-sm text-base-content/70 mt-1">
+    <span class="font-semibold">Votes ({{ voters | length }}):</span> {{ voters | join(', ') }}
+  </div>
+{% endif %}

@@ -169,7 +169,10 @@
         <ul class="mb-4 space-y-2">
           {% for item in registration.potluck_items %}
           <li class="flex items-center justify-between gap-3 text-sm bg-base-300 rounded-box px-3 py-2">
-            <span>{{ item.description }}</span>
+            <span>
+              {% if item.event_date %}<span class="badge badge-ghost badge-sm mr-1">{{ item.event_date.strftime('%a') }}</span>{% endif %}
+              {{ item.description }}
+            </span>
             <form method="POST" action="{{ url_for('account.potluck_delete', slug=event.slug, item_id=item.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <button type="submit" class="btn btn-ghost btn-xs text-error">Remove</button>
@@ -179,10 +182,18 @@
         </ul>
       {% endif %}
 
-      <form method="POST" action="{{ url_for('account.potluck_add', slug=event.slug) }}" class="flex gap-2">
+      <form method="POST" action="{{ url_for('account.potluck_add', slug=event.slug) }}" class="flex gap-2 flex-wrap">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <input type="text" name="description" placeholder="Chips and salsa, 2L Dr Pepper…"
                class="input input-bordered input-sm flex-1" maxlength="300" required />
+        {% if potluck_days %}
+          <select name="event_date" class="select select-bordered select-sm">
+            <option value="">Any day</option>
+            {% for d in potluck_days %}
+              <option value="{{ d.isoformat() }}">{{ d.strftime('%A') }}</option>
+            {% endfor %}
+          </select>
+        {% endif %}
         <button type="submit" class="btn btn-primary btn-sm">Add</button>
       </form>
     </div>

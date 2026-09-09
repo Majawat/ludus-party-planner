@@ -205,6 +205,9 @@ class Event(db.Model):
     seating_enabled = db.Column(db.Boolean, default=False, nullable=False)
     registration_open = db.Column(db.Boolean, default=True, nullable=False)
     registration_closes_at = db.Column(db.DateTime, nullable=True)
+    # When True, emergency contact fields appear on the registration form for all
+    # tickets, regardless of any ticket's lodging status.
+    collect_emergency_contacts = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
@@ -369,6 +372,8 @@ class PotluckItem(db.Model):
     event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
     registration_id = db.Column(db.Integer, db.ForeignKey("registrations.id"), nullable=False)
     description = db.Column(db.Text, nullable=False)
+    # Which day of a multi-day event this item is for; NULL = single-day event.
+    event_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
@@ -431,6 +436,9 @@ class GameSuggestion(db.Model):
     game_year = db.Column(db.Integer, nullable=True)
     game_min_players = db.Column(db.Integer, nullable=True)
     game_max_players = db.Column(db.Integer, nullable=True)
+    play_style = db.Column(db.Text, nullable=True)  # 'co-op', 'competitive', 'both'
+    system_requirements = db.Column(db.Text, nullable=True)  # freetext, e.g. "Low", "Requires controller"
+    notes = db.Column(db.Text, nullable=True)  # context from the suggester
     suggested_datetime = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
 
