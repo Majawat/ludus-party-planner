@@ -140,7 +140,12 @@ def register():
         db.session.flush()
         raw_token = EmailVerificationToken.create_for_user(user)
         db.session.commit()
-        send_verification_email(user, raw_token)
+        # Best-effort: a failed/unconfigured email must not 500 the registration
+        # (the account is already committed). The user can resend verification.
+        try:
+            send_verification_email(user, raw_token)
+        except Exception as e:
+            current_app.logger.warning(f"verification email failed for {user.email}: {e}")
         flash("Account created! Check your email to verify your address.", "success")
         return redirect(url_for("auth.login"))
     oauth_providers = _get_configured_providers()
@@ -223,7 +228,10 @@ def resend_verification():
     EmailVerificationToken.query.filter_by(user_id=current_user.id).delete()
     raw_token = EmailVerificationToken.create_for_user(current_user)
     db.session.commit()
-    send_verification_email(current_user, raw_token)
+    try:
+        send_verification_email(current_user, raw_token)
+    except Exception as e:
+        current_app.logger.warning(f"resend verification email failed for {current_user.email}: {e}")
     flash("Verification email resent.", "success")
     return redirect(url_for("account.dashboard"))
 
@@ -236,7 +244,10 @@ def forgot_password():
         if user:
             raw_token = PasswordResetToken.create_for_user(user)
             db.session.commit()
-            send_password_reset_email(user, raw_token)
+            try:
+                send_password_reset_email(user, raw_token)
+            except Exception as e:
+                current_app.logger.warning(f"password reset email failed for {user.email}: {e}")
         flash("If that email is registered, you'll receive a reset link shortly.", "success")
         return redirect(url_for("auth.login"))
     return render_template("auth/forgot_password.html", form=form)
