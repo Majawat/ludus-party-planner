@@ -379,8 +379,12 @@ def test_verify_uses_sliding_window(app):
     from totp import verify_totp_code
     secret = pyotp.random_base32()
     totp = pyotp.TOTP(secret)
-    # Generate a code for 31 seconds ago (previous window)
-    prev_code = totp.at(time.time() - 31)
+    # Avoid the ~1s race at a window boundary: if verify() ticks into the next
+    # 30s window after the code is generated, the previous-window code would fall
+    # two windows back and be rejected. Step off the end of the window first.
+    if time.time() % 30 > 27:
+        time.sleep(3.5)
+    prev_code = totp.at(time.time() - 30)
     with app.app_context():
         assert verify_totp_code(secret, prev_code) is True
 
